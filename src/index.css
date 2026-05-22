@@ -1,0 +1,162 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ISE Planner Design System — All colors in HSL */
+
+@layer base {
+  :root {
+    /* ISE Brand Colors */
+    --ise-blue: 207 100% 22%;       /* #003E70 */
+    --ise-blue-light: 207 100% 32%; /* lighter blue */
+    --ise-blue-dark: 207 100% 12%;  /* darker blue */
+    --ise-blue-50: 207 100% 97%;    /* very light blue bg */
+    --ise-blue-100: 207 100% 93%;
+
+    --ise-gray: 0 0% 37%;           /* #5E5E5E */
+    --ise-gray-light: 0 0% 94%;     /* #F0F0F0 */
+    --ise-gray-200: 0 0% 88%;
+    --ise-gray-300: 0 0% 75%;
+    --ise-gray-700: 0 0% 30%;
+
+    /* System tokens */
+    --background: 220 20% 97%;
+    --foreground: 220 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 15%;
+
+    --primary: 207 100% 22%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 207 100% 93%;
+    --secondary-foreground: 207 100% 12%;
+
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 207 100% 93%;
+    --accent-foreground: 207 100% 12%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 207 100% 22%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 207 100% 14%;
+    --sidebar-foreground: 207 30% 90%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 207 100% 14%;
+    --sidebar-accent: 207 100% 19%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 207 60% 20%;
+    --sidebar-ring: 207 100% 55%;
+
+    /* Status indicators */
+    --status-free: 142 71% 45%;
+    --status-attention: 38 92% 50%;
+    --status-full: 0 72% 51%;
+    --status-draft: 220 10% 60%;
+    --status-prereserved: 207 100% 55%;
+    --status-reserved: 142 71% 45%;
+    --status-final: 207 100% 22%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px 0 hsl(207 100% 22% / 0.08), 0 1px 2px -1px hsl(207 100% 22% / 0.08);
+    --shadow-md: 0 4px 6px -1px hsl(207 100% 22% / 0.10), 0 2px 4px -2px hsl(207 100% 22% / 0.08);
+    --shadow-lg: 0 10px 15px -3px hsl(207 100% 22% / 0.10), 0 4px 6px -4px hsl(207 100% 22% / 0.08);
+    --shadow-card: 0 2px 8px 0 hsl(207 100% 22% / 0.08);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Nunito', system-ui, sans-serif;
+    font-weight: 700;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-md-blue {
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Sidebar gradients */
+  .sidebar-gradient {
+    background: linear-gradient(180deg, hsl(207, 100%, 14%) 0%, hsl(207, 100%, 10%) 100%);
+  }
+
+  /* Status dot */
+  .status-free { background-color: hsl(var(--status-free)); }
+  .status-attention { background-color: hsl(var(--status-attention)); }
+  .status-full { background-color: hsl(var(--status-full)); }
+  .status-draft { background-color: hsl(var(--status-draft)); }
+  .status-prereserved { background-color: hsl(var(--status-prereserved)); }
+  .status-reserved { background-color: hsl(var(--status-reserved)); }
+}
+
+/* Top-center success toast */
+.top-center-toast {
+  background-color: hsl(var(--success)) !important;
+  color: hsl(var(--success-foreground)) !important;
+  border-color: hsl(var(--success)) !important;
+}
+
+/* Toast viewport override for top-center placement */
+[data-radix-toast-viewport] {
+  top: 1rem;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--ise-gray-300));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--ise-gray));
+}
