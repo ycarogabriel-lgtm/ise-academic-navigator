@@ -4,7 +4,8 @@ import {
   Layers, X, Info, Hash, Users, AlertCircle, CheckCircle2,
   ChevronLeft, ArrowRight, Save, Calendar as CalendarLucide,
   BookOpen, UserPlus, Sparkles, Pencil, CalendarIcon, Building2,
-  UserCheck, ClipboardList
+  UserCheck, ClipboardList, Plus, Trash2, GripVertical, ChevronDown,
+  ChevronRight, FileText, Send, Copy, Settings, Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -15,7 +16,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ProgramType = "custom" | "aberto" | "imersao";
+type ProgramType = "custom" | "aberto" | "imersao" | "colaboradores" | "educacao_executiva" | "emba" | "eventos" | "internacionais" | "llm" | "mba_full_time" | "easy_humanidades";
 type ModalityType = "presencial" | "hibrido" | "online";
 type LocalType = "campus_ise" | "externo";
 
@@ -50,7 +51,16 @@ const TIPO_PROGRAMA: { value: ProgramType; label: string }[] = [
   { value: "custom", label: "Custom" },
   { value: "aberto", label: "Aberto" },
   { value: "imersao", label: "Imersão" },
+  { value: "emba", label: "EMBA" },
+  { value: "mba_full_time", label: "MBA Full Time" },
+  { value: "educacao_executiva", label: "Educação Executiva" },
+  { value: "colaboradores", label: "Colaboradores" },
+  { value: "eventos", label: "Eventos" },
+  { value: "internacionais", label: "Internacionais" },
+  { value: "llm", label: "LLM" },
+  { value: "easy_humanidades", label: "Easy Humanidades" },
 ];
+const SLOTS = ["M1", "M2", "M3", "I1", "T1", "T2", "T3", "N1", "N2"];
 const MODALIDADES: { value: ModalityType; label: string }[] = [
   { value: "presencial", label: "Presencial" },
   { value: "hibrido", label: "Híbrido" },
@@ -60,9 +70,7 @@ const LOCAIS: { value: LocalType; label: string }[] = [
   { value: "campus_ise", label: "Campus ISE" },
   { value: "externo", label: "Externo" },
 ];
-const SLOTS = ["M1", "M2", "T1", "T2", "N1", "N2"];
-
-const STEPS = ["Identificação", "Responsáveis", "Estrutura Acadêmica", "Grade"];
+const STEPS = ["Identificação", "Responsáveis", "Estrutura Acadêmica", "Grade", "Detalhes das sessões", "Dias de aula"];
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 function FieldLabel({ children, required, optional, tooltip }: {
@@ -419,45 +427,741 @@ function StepEstrutura({ form, setForm, errors }: {
   );
 }
 
+// ─── ClonarTemplateModal ─────────────────────────────────────────────────────────────
+
+const MOCK_TURMAS_TEMPLATE = [
+  { id: "t1", sigla: "EMBA-23A", nome: "EMBA Turma 2023 A", periodo: "Mar 2023 – Jan 2024", sessoes: 48 },
+  { id: "t2", sigla: "EMBA-22B", nome: "EMBA Turma 2022 B", periodo: "Set 2022 – Jun 2023", sessoes: 48 },
+  { id: "t3", sigla: "MBA-23A", nome: "MBA Full Time 2023", periodo: "Fev 2023 – Dez 2023", sessoes: 60 },
+  { id: "t4", sigla: "EXEC-23", nome: "Educação Executiva 2023", periodo: "Mai 2023 – Nov 2023", sessoes: 24 },
+];
+const MOCK_TEMPLATES_INST = [
+  { id: "tpl1", nome: "Template EMBA Padrão", versao: "v2.3", sessoes: 48, atualizado: "Jan 2024" },
+  { id: "tpl2", nome: "Template MBA Full Time", versao: "v1.8", sessoes: 60, atualizado: "Dez 2023" },
+  { id: "tpl3", nome: "Template Educação Executiva", versao: "v3.1", sessoes: 24, atualizado: "Mar 2024" },
+];
+
+function ClonarTemplateModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
+  const [tab, setTab] = useState<"turma" | "template">("turma");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [checks, setChecks] = useState({
+    info: true, turmas: false, grade: true, agrupamentos: false,
+  });
+
+  const turmas = MOCK_TURMAS_TEMPLATE.filter((t) =>
+    t.nome.toLowerCase().includes(search.toLowerCase()) || t.sigla.toLowerCase().includes(search.toLowerCase())
+  );
+  const templates = MOCK_TEMPLATES_INST.filter((t) =>
+    t.nome.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[85vh] animate-fade-in">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-border">
+            <div className="flex items-center gap-3">
+              <Copy className="w-4 h-4 text-primary shrink-0" />
+              <h2 className="text-base font-bold text-foreground">Criar a partir de...</h2>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 mx-6 mt-4 p-1 bg-muted rounded-xl shrink-0">
+            {([{ key: "turma", label: "Clonar Turma Anterior" }, { key: "template", label: "Template Institucional" }] as const).map((t) => (
+              <button key={t.key} onClick={() => { setTab(t.key); setSelected(null); setSearch(""); }}
+                className={cn("flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                  tab === t.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="px-6 mt-3 shrink-0">
+            <input
+              className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+              placeholder="Buscar..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1.5">
+            {tab === "turma" && turmas.map((t) => (
+              <label key={t.id} className={cn(
+                "flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer border transition-all",
+                selected === t.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+              )}>
+                <input type="radio" name="template-turma" checked={selected === t.id}
+                  onChange={() => setSelected(t.id)} className="shrink-0 accent-primary" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground">{t.sigla}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{t.nome}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.periodo} · {t.sessoes} sessões</p>
+                </div>
+              </label>
+            ))}
+            {tab === "template" && templates.map((t) => (
+              <label key={t.id} className={cn(
+                "flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer border transition-all",
+                selected === t.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+              )}>
+                <input type="radio" name="template-inst" checked={selected === t.id}
+                  onChange={() => setSelected(t.id)} className="shrink-0 accent-primary" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-1.5 py-0.5 bg-muted rounded text-muted-foreground">{t.versao}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{t.nome}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.sessoes} sessões · Atualizado {t.atualizado}</p>
+                </div>
+              </label>
+            ))}
+            {((tab === "turma" && turmas.length === 0) || (tab === "template" && templates.length === 0)) && (
+              <p className="text-sm text-muted-foreground text-center py-6">Nenhum resultado encontrado.</p>
+            )}
+          </div>
+
+          {/* Checkboxes */}
+          <div className="px-6 py-4 border-t border-border shrink-0">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">Incluir na cópia</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: "info", label: "Informações do programa" },
+                { key: "turmas", label: "Turmas" },
+                { key: "grade", label: "Grade Acadêmica" },
+                { key: "agrupamentos", label: "Agrupamento de Atividades" },
+              ] as const).map((c) => (
+                <label key={c.key} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={checks[c.key]}
+                    onChange={() => setChecks((p) => ({ ...p, [c.key]: !p[c.key] }))}
+                    className="rounded accent-primary" />
+                  <span className="text-xs text-foreground">{c.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-muted/30 shrink-0">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors">
+              Começar do zero
+            </button>
+            <button onClick={() => { if (selected) { onConfirm(); onClose(); } }}
+              disabled={!selected}
+              className={cn("flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                selected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground cursor-not-allowed"
+              )}>
+              <Copy className="w-3.5 h-3.5" /> Clonar estrutura selecionada
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── StepGrade ──────────────────────────────────────────────────────────────────────
+
+interface GradeModule { id: string; nome: string; disciplinas: GradeDisciplina[] }
+interface GradeDisciplina { id: string; professor: string; modalidade: "presencial" | "online"; numSessoes: number; modulo: string }
+
+function ModalDisciplina({ modulo, onClose, onSave }: {
+  modulo: string; onClose: () => void;
+  onSave: (d: GradeDisciplina) => void;
+}) {
+  const [form, setForm] = useState<GradeDisciplina>({
+    id: crypto.randomUUID(), professor: "", modalidade: "presencial", numSessoes: 1, modulo,
+  });
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary shrink-0" />
+              <h2 className="text-sm font-bold text-foreground">Adicionar disciplina</h2>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="px-5 py-4 space-y-4">
+            <div>
+              <FieldLabel>Módulo</FieldLabel>
+              <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                value={form.modulo} onChange={(e) => setForm({ ...form, modulo: e.target.value })} />
+            </div>
+            <div>
+              <FieldLabel>Professor</FieldLabel>
+              <PeopleAutocomplete value={form.professor}
+                onChange={(v) => setForm({ ...form, professor: v })} placeholder="Nome do professor..." />
+            </div>
+            <div>
+              <FieldLabel>Modalidade</FieldLabel>
+              <div className="flex gap-2">
+                {(["presencial", "online"] as const).map((m) => (
+                  <button key={m} type="button"
+                    onClick={() => setForm({ ...form, modalidade: m })}
+                    className={cn("flex-1 py-2 text-xs font-medium rounded-lg border transition-all",
+                      form.modalidade === m ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
+                    )}>
+                    {m === "presencial" ? "Presencial" : "Online"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Nº de sessões</FieldLabel>
+              <input type="number" min={1} max={99}
+                className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                value={form.numSessoes}
+                onChange={(e) => setForm({ ...form, numSessoes: Math.max(1, Number(e.target.value)) })} />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
+              Cancelar
+            </button>
+            <button onClick={() => { onSave(form); onClose(); }}
+              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function StepGrade() {
+  const [modules, setModules] = useState<GradeModule[]>([
+    { id: "m1", nome: "Módulo 1 — Fundamentos", disciplinas: [
+      { id: "d1", professor: "Prof. Dr. Carlos Faria", modalidade: "presencial", numSessoes: 3, modulo: "Módulo 1 — Fundamentos" },
+    ]},
+    { id: "m2", nome: "Módulo 2 — Estratégia", disciplinas: [] },
+  ]);
+  const [newModuleName, setNewModuleName] = useState("");
+  const [editModuleId, setEditModuleId] = useState<string | null>(null);
+  const [addDisciplinaFor, setAddDisciplinaFor] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ m1: true });
+
+  const addModule = () => {
+    const name = newModuleName.trim();
+    if (!name) return;
+    setModules((p) => [...p, { id: crypto.randomUUID(), nome: name, disciplinas: [] }]);
+    setNewModuleName("");
+  };
+  const deleteModule = (id: string) => setModules((p) => p.filter((m) => m.id !== id));
+  const addDisciplina = (moduleId: string, d: GradeDisciplina) => {
+    setModules((p) => p.map((m) => m.id === moduleId ? { ...m, disciplinas: [...m.disciplinas, d] } : m));
+  };
+  const removeDisciplina = (moduleId: string, dId: string) => {
+    setModules((p) => p.map((m) => m.id === moduleId ? { ...m, disciplinas: m.disciplinas.filter((d) => d.id !== dId) } : m));
+  };
+
   return (
     <div className="space-y-5">
-      <div className="bg-warning/5 border border-warning/20 rounded-xl p-4 flex gap-3">
-        <AlertCircle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+      {addDisciplinaFor && (
+        <ModalDisciplina
+          modulo={modules.find((m) => m.id === addDisciplinaFor)?.nome ?? ""}
+          onClose={() => setAddDisciplinaFor(null)}
+          onSave={(d) => addDisciplina(addDisciplinaFor, d)}
+        />
+      )}
+      <div className="flex items-center gap-2">
+        <input
+          className="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+          placeholder="Nome do módulo..."
+          value={newModuleName}
+          onChange={(e) => setNewModuleName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addModule()}
+        />
+        <button onClick={addModule}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0">
+          <Plus className="w-3.5 h-3.5" /> Adicionar
+        </button>
+      </div>
+      <div className="space-y-3">
+        {modules.map((mod) => (
+          <div key={mod.id} className="border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 bg-muted/30">
+              <button onClick={() => setExpanded((p) => ({ ...p, [mod.id]: !p[mod.id] }))}
+                className="flex items-center gap-2 flex-1 text-left min-w-0">
+                {expanded[mod.id] ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                <span className="text-sm font-semibold text-foreground truncate">
+                  {editModuleId === mod.id ? (
+                    <input className="text-sm font-semibold text-foreground bg-transparent border-b border-primary focus:outline-none w-48"
+                      autoFocus defaultValue={mod.nome}
+                      onBlur={(e) => { setModules((p) => p.map((m) => m.id === mod.id ? { ...m, nome: e.target.value } : m)); setEditModuleId(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur())}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : mod.nome}
+                </span>
+                <span className="text-xs text-muted-foreground ml-1 shrink-0">
+                  {mod.disciplinas.reduce((s, d) => s + d.numSessoes, 0)} sessões
+                </span>
+              </button>
+              <button onClick={() => setAddDisciplinaFor(mod.id)}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setEditModuleId(editModuleId === mod.id ? null : mod.id)}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
+                <Pencil className="w-3 h-3" />
+              </button>
+              <button onClick={() => deleteModule(mod.id)}
+                className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {expanded[mod.id] && (
+              <div className="divide-y divide-border">
+                {mod.disciplinas.length === 0 ? (
+                  <div className="px-4 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">Nenhuma disciplina. Clique em + para adicionar.</p>
+                  </div>
+                ) : mod.disciplinas.map((d) => (
+                  <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{d.professor || "Professor TBD"}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
+                          d.modalidade === "presencial" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                        )}>{d.modalidade === "presencial" ? "Presencial" : "Online"}</span>
+                        <span className="text-xs text-muted-foreground">{d.numSessoes} sessão(s)</span>
+                      </div>
+                    </div>
+                    <button onClick={() => removeDisciplina(mod.id, d.id)}
+                      className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {modules.length === 0 && (
+          <div className="border border-dashed border-border rounded-xl py-8 text-center">
+            <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-foreground font-medium">Nenhum módulo adicionado</p>
+            <p className="text-xs text-muted-foreground mt-1">Digite um nome acima e clique em Adicionar.</p>
+          </div>
+        )}
+      </div>
+      <div className="bg-muted/50 rounded-xl p-4 flex items-start gap-3">
+        <Globe className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
         <div>
-          <p className="text-xs font-semibold text-foreground">Sobre o preenchimento da grade</p>
+          <p className="text-xs font-semibold text-foreground">Integração Moodle</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Casos e documentos pedagógicos vinculados via API do Moodle após criação da turma.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SessaoData {
+  id: string; titulo: string; slot: string; status: "draft" | "confirmada" | "cancelada";
+  modalidade: "presencial" | "hibrido" | "online";
+  professor: string; duracao: number; recurso?: string; modulo?: string;
+  tema?: string; objetivos?: string;
+}
+interface DisciplinaData { id: string; nome: string; modulo?: string; sessoes: SessaoData[] }
+
+const MOCK_DISCIPLINAS: DisciplinaData[] = [
+  { id: "d1", nome: "Estratégia Empresarial", modulo: "Módulo 1",
+    sessoes: [
+      { id: "s1", titulo: "Introdução à Estratégia", slot: "M1", status: "draft", modalidade: "presencial", professor: "Prof. Dr. Carlos Faria", duracao: 90 },
+      { id: "s2", titulo: "Análise Competitiva", slot: "T1", status: "draft", modalidade: "presencial", professor: "Prof. Dr. Carlos Faria", duracao: 90 },
+      { id: "s3", titulo: "Estudo de Caso AMBEV", slot: "M2", status: "confirmada", modalidade: "presencial", professor: "Prof. Dr. Carlos Faria", duracao: 120 },
+    ]},
+  { id: "d2", nome: "Finanças Corporativas", modulo: "Módulo 1",
+    sessoes: [
+      { id: "s4", titulo: "Valuation", slot: "M1", status: "draft", modalidade: "online", professor: "Profa. Dra. Ana Souza", duracao: 90 },
+      { id: "s5", titulo: "Estrutura de Capital", slot: "T2", status: "draft", modalidade: "presencial", professor: "Profa. Dra. Ana Souza", duracao: 90 },
+    ]},
+  { id: "d3", nome: "Marketing Estratégico", modulo: "Módulo 2",
+    sessoes: [
+      { id: "s6", titulo: "Posicionamento de Marca", slot: "M1", status: "draft", modalidade: "presencial", professor: "Prof. Dr. Pedro Costa", duracao: 90 },
+    ]},
+];
+
+function ModalSessao({ sessao, onClose, onSave }: {
+  sessao: SessaoData; onClose: () => void; onSave: (s: SessaoData) => void;
+}) {
+  const [tab, setTab] = useState<"info" | "materiais" | "logistica">("info");
+  const [form, setForm] = useState<SessaoData>(sessao);
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-fade-in">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary shrink-0" />
+              <h2 className="text-sm font-bold text-foreground">{form.titulo || "Editar sessão"}</h2>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="flex gap-1 mx-5 mt-3 p-1 bg-muted rounded-lg shrink-0">
+            {([{ key: "info", label: "Informações" }, { key: "materiais", label: "Materiais" }, { key: "logistica", label: "Logística" }] as const).map((t) => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={cn("flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                  tab === t.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}>{t.label}</button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {tab === "info" && (
+              <>
+                <div className="col-span-2">
+                  <FieldLabel required>Título da sessão</FieldLabel>
+                  <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <FieldLabel>Slot</FieldLabel>
+                    <select className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none"
+                      value={form.slot} onChange={(e) => setForm({ ...form, slot: e.target.value })}>
+                      {SLOTS.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Duração (min)</FieldLabel>
+                    <input type="number" min={30} step={15}
+                      className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none"
+                      value={form.duracao} onChange={(e) => setForm({ ...form, duracao: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Professor</FieldLabel>
+                  <PeopleAutocomplete value={form.professor} onChange={(v) => setForm({ ...form, professor: v })} />
+                </div>
+                <div>
+                  <FieldLabel>Modalidade</FieldLabel>
+                  <div className="flex gap-2">
+                    {MODALIDADES.map((m) => (
+                      <button key={m.value} type="button" onClick={() => setForm({ ...form, modalidade: m.value as "presencial" | "hibrido" | "online" })}
+                        className={cn("flex-1 py-1.5 text-xs font-medium rounded-lg border transition-all",
+                          form.modalidade === m.value ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
+                        )}>{m.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel optional>Tema / Objetivos</FieldLabel>
+                  <textarea rows={3} className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none resize-none"
+                    value={form.tema || ""} onChange={(e) => setForm({ ...form, tema: e.target.value })}
+                    placeholder="Descreva o tema e objetivos da sessão..." />
+                </div>
+                <div>
+                  <FieldLabel optional>Recurso / Sala estimada</FieldLabel>
+                  <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none"
+                    value={form.recurso || ""} onChange={(e) => setForm({ ...form, recurso: e.target.value })}
+                    placeholder="Ex: Auditório A, Sala 201..." />
+                </div>
+              </>
+            )}
+            {tab === "materiais" && (
+              <div className="bg-muted/40 rounded-xl border border-dashed border-border p-6 text-center">
+                <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">Materiais do Moodle</p>
+                <p className="text-xs text-muted-foreground mt-1">Materiais vinculados via API do Moodle aparecerão aqui após a criação da turma.</p>
+              </div>
+            )}
+            {tab === "logistica" && (
+              <div className="space-y-4">
+                {(["Solicitar RA", "Solicitar refeição", "Marcar como evento"] as const).map((item) => (
+                  <label key={item} className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" className="rounded accent-primary" />
+                    <span className="text-sm text-foreground">{item}</span>
+                  </label>
+                ))}
+                <div>
+                  <FieldLabel optional>Necessidades especiais</FieldLabel>
+                  <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none"
+                    placeholder="Ex: Projetor duplo, microfone sem fio..." />
+                </div>
+                <div>
+                  <FieldLabel optional>Observações</FieldLabel>
+                  <textarea rows={3} className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none resize-none"
+                    placeholder="Anotações internas sobre a sessão..." />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
+              Cancelar
+            </button>
+            <button onClick={() => { onSave(form); onClose(); }}
+              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function StepDetalhes() {
+  const [disciplinas, setDisciplinas] = useState<DisciplinaData[]>(MOCK_DISCIPLINAS);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ d1: true });
+  const [editSessao, setEditSessao] = useState<{ sessao: SessaoData; disciplinaId: string } | null>(null);
+
+  const updateSessao = (disciplinaId: string, updated: SessaoData) => {
+    setDisciplinas((prev) => prev.map((d) =>
+      d.id === disciplinaId ? { ...d, sessoes: d.sessoes.map((s) => s.id === updated.id ? updated : s) } : d
+    ));
+  };
+  const removeSessao = (disciplinaId: string, sessaoId: string) => {
+    setDisciplinas((prev) => prev.map((d) =>
+      d.id === disciplinaId ? { ...d, sessoes: d.sessoes.filter((s) => s.id !== sessaoId) } : d
+    ));
+  };
+  const addSessao = (disciplinaId: string) => {
+    const novaS: SessaoData = {
+      id: crypto.randomUUID(), titulo: "Nova sessão", slot: "M1",
+      status: "draft", modalidade: "presencial", professor: "", duracao: 90,
+    };
+    setDisciplinas((prev) => prev.map((d) =>
+      d.id === disciplinaId ? { ...d, sessoes: [...d.sessoes, novaS] } : d
+    ));
+  };
+
+  const totalSessoes = disciplinas.reduce((s, d) => s + d.sessoes.length, 0);
+  const confirmedSessoes = disciplinas.reduce((s, d) => s + d.sessoes.filter((ss) => ss.status === "confirmada").length, 0);
+
+  return (
+    <div className="space-y-4">
+      {editSessao && (
+        <ModalSessao sessao={editSessao.sessao} onClose={() => setEditSessao(null)}
+          onSave={(updated) => { updateSessao(editSessao.disciplinaId, updated); setEditSessao(null); }} />
+      )}
+      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3">
+        <Info className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+        <div>
+          <p className="text-xs font-semibold text-foreground">Recursos em modo Rascunho</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            Conflitos são <strong>sinalizados visualmente</strong> mas não bloqueiam o salvamento.
-            Convites definitivos só são enviados se você optar. Validação automática de sobrecarga docente (máx. 2 sessões/dia).
+            Alocações nesta etapa não disparam convites ou bloqueios no Outlook.
           </p>
         </div>
       </div>
-
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Slots disponíveis</p>
-        <div className="grid grid-cols-3 gap-3">
-          {SLOTS.map((slot) => (
-            <div key={slot} className="border border-dashed border-border rounded-xl p-4 text-center hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer group">
-              <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center mx-auto mb-2 group-hover:bg-primary/10 transition-colors">
-                <span className="text-sm font-bold text-foreground">{slot}</span>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sessões e disciplinas</p>
+        <span className="text-xs text-muted-foreground">{confirmedSessoes}/{totalSessoes} confirmadas</span>
+      </div>
+      <div className="space-y-3">
+        {disciplinas.map((disc) => {
+          const confirmed = disc.sessoes.filter((s) => s.status === "confirmada").length;
+          return (
+            <div key={disc.id} className="border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 cursor-pointer"
+                onClick={() => setExpanded((p) => ({ ...p, [disc.id]: !p[disc.id] }))}>
+                {expanded[disc.id] ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm font-semibold text-foreground flex-1 truncate">{disc.nome}</span>
+                {disc.modulo && <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground shrink-0 hidden sm:block">{disc.modulo}</span>}
+                <span className="text-xs text-muted-foreground shrink-0">{confirmed}/{disc.sessoes.length}</span>
+                <button onClick={(e) => { e.stopPropagation(); addSessao(disc.id); }}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground shrink-0">
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {slot === "M1" && "Manhã 1"}{slot === "M2" && "Manhã 2"}
-                {slot === "T1" && "Tarde 1"}{slot === "T2" && "Tarde 2"}
-                {slot === "N1" && "Noite 1"}{slot === "N2" && "Noite 2"}
-              </p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Clique para adicionar</p>
+              {expanded[disc.id] && (
+                <div className="divide-y divide-border">
+                  {disc.sessoes.length === 0 ? (
+                    <div className="px-4 py-4 text-center">
+                      <p className="text-xs text-muted-foreground">Nenhuma sessão. Clique em + para adicionar.</p>
+                    </div>
+                  ) : disc.sessoes.map((sessao) => (
+                    <div key={sessao.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 group transition-colors">
+                      <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />
+                      <select className="text-xs px-2 py-1 rounded border border-border bg-background text-foreground w-12 shrink-0"
+                        value={sessao.slot} onChange={(e) => updateSessao(disc.id, { ...sessao, slot: e.target.value })}>
+                        {SLOTS.map((s) => <option key={s}>{s}</option>)}
+                      </select>
+                      <span className="text-sm text-foreground flex-1 truncate">{sessao.titulo}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full border shrink-0 hidden sm:block",
+                        sessao.status === "confirmada" ? "bg-success/10 text-success border-success/20" :
+                        sessao.status === "cancelada" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                        "bg-muted text-muted-foreground border-muted-foreground/20"
+                      )}>{sessao.status}</span>
+                      <span className={cn("text-xs px-2 py-0.5 rounded shrink-0 hidden md:block",
+                        sessao.modalidade === "presencial" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                      )}>{MODALIDADES.find((m) => m.value === sessao.modalidade)?.label}</span>
+                      <span className="text-xs text-muted-foreground shrink-0 hidden lg:block truncate max-w-[100px]">{sessao.professor}</span>
+                      <button onClick={() => setEditSessao({ sessao, disciplinaId: disc.id })}
+                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => removeSessao(disc.id, sessao.id)}
+                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const WEEK_DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const TIME_ROWS = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
+
+interface AllocSessao { id: string; nome: string; slot: string; modulo?: string; duracao?: number; allocated?: boolean; dayIdx?: number; timeIdx?: number }
+
+const MOCK_ALLOC_SESSOES: AllocSessao[] = [
+  { id: "a1", nome: "Introdução à Estratégia", slot: "M1", modulo: "Módulo 1", duracao: 90 },
+  { id: "a2", nome: "Análise Competitiva", slot: "T1", modulo: "Módulo 1", duracao: 90, allocated: true, dayIdx: 0, timeIdx: 2 },
+  { id: "a3", nome: "Valuation", slot: "M2", modulo: "Módulo 1", duracao: 90 },
+  { id: "a4", nome: "Estudo de Caso AMBEV", slot: "M1", modulo: "Módulo 2", duracao: 120 },
+  { id: "a5", nome: "Estrutura de Capital", slot: "T2", modulo: "Módulo 1", duracao: 90, allocated: true, dayIdx: 2, timeIdx: 5 },
+  { id: "a6", nome: "Posicionamento de Marca", slot: "M1", modulo: "Módulo 2", duracao: 90 },
+];
+
+function StepDiasAula() {
+  const [viewDir, setViewDir] = useState<"horizontal" | "vertical">("horizontal");
+  const [sessoes, setSessoes] = useState<AllocSessao[]>(MOCK_ALLOC_SESSOES);
+
+  const unallocated = sessoes.filter((s) => !s.allocated);
+  const academic = unallocated.filter((_, i) => i % 2 === 0);
+  const nonAcademic = unallocated.filter((_, i) => i % 2 !== 0);
+  const allocatedCount = sessoes.filter((s) => s.allocated).length;
+  const allocPct = sessoes.length > 0 ? Math.round((allocatedCount / sessoes.length) * 100) : 0;
+
+  const placeSession = (sessaoId: string, dayIdx: number, timeIdx: number) => {
+    setSessoes((prev) => prev.map((s) =>
+      s.id === sessaoId ? { ...s, allocated: true, dayIdx, timeIdx } : s
+    ));
+  };
+  const removeAllocation = (sessaoId: string) => {
+    setSessoes((prev) => prev.map((s) =>
+      s.id === sessaoId ? { ...s, allocated: false, dayIdx: undefined, timeIdx: undefined } : s
+    ));
+  };
+  const getSessionAt = (dayIdx: number, timeIdx: number) =>
+    sessoes.find((s) => s.allocated && s.dayIdx === dayIdx && s.timeIdx === timeIdx);
+
+  return (
+    <div className="h-full min-h-[600px] flex flex-col gap-4">
+      {/* Controls */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-medium">Visualização:</span>
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
+            {([{ key: "horizontal", label: "Horizontal" }, { key: "vertical", label: "Vertical" }] as const).map((v) => (
+              <button key={v.key} onClick={() => setViewDir(v.key)}
+                className={cn("text-xs px-2.5 py-1 rounded-md transition-all font-medium",
+                  viewDir === v.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}>{v.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+            <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : "bg-primary")}
+              style={{ width: `${allocPct}%` }} />
+          </div>
+          <span className="text-xs text-muted-foreground">{allocatedCount}/{sessoes.length} alocadas</span>
         </div>
       </div>
 
-      <div className="bg-muted/50 rounded-xl p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-foreground">Integração Moodle</p>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">Disponível após criar turma</span>
+      <div className={cn("flex gap-4 flex-1", viewDir === "vertical" && "flex-col")}>
+        {/* Left panel */}
+        <div className={cn("shrink-0 space-y-4", viewDir === "horizontal" ? "w-52" : "w-full")}>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Acadêmicas</p>
+            <div className="space-y-1.5">
+              {academic.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Todas alocadas</p>
+              ) : academic.map((s) => (
+                <div key={s.id}
+                  className="flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 hover:shadow-sm transition-all cursor-grab">
+                  <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{s.nome}</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-xs font-mono text-muted-foreground">{s.slot}</span>
+                      {s.modulo && <span className="text-xs text-muted-foreground/60 truncate">{s.modulo}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {nonAcademic.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Não-acadêmicas</p>
+              <div className="space-y-1.5">
+                {nonAcademic.map((s) => (
+                  <div key={s.id}
+                    className="flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 transition-all cursor-grab">
+                    <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
+                    <p className="text-xs font-medium text-foreground truncate flex-1">{s.nome}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground">Casos e documentos pedagógicos poderão ser vinculados via API do Moodle após criação da turma.</p>
+
+        {/* Right panel */}
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-[480px]">
+            <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
+              <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
+              {WEEK_DAYS.map((d) => (
+                <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
+              ))}
+            </div>
+            {TIME_ROWS.map((time, tIdx) => (
+              <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
+                <div className="text-xs text-muted-foreground text-right pr-1.5 py-2 leading-tight">{time}</div>
+                {WEEK_DAYS.map((_, dIdx) => {
+                  const placed = getSessionAt(dIdx, tIdx);
+                  return placed ? (
+                    <div key={dIdx}
+                      className="h-10 rounded-lg bg-primary/10 border border-primary/20 px-1.5 flex items-center justify-between group cursor-pointer hover:bg-primary/15 transition-colors">
+                      <span className="text-xs text-primary font-medium truncate flex-1">{placed.nome}</span>
+                      <button onClick={(e) => { e.stopPropagation(); removeAllocation(placed.id); }}
+                        className="opacity-0 group-hover:opacity-100 shrink-0 ml-1 text-muted-foreground hover:text-destructive transition-all">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div key={dIdx}
+                      className="h-10 border border-dashed border-border rounded-lg hover:bg-primary/5 hover:border-primary/30 transition-colors cursor-pointer"
+                      onClick={() => { const first = unallocated[0]; if (first) placeSession(first.id, dIdx, tIdx); }} />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -497,6 +1201,8 @@ export default function NewTurmaPage() {
   );
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Partial<Record<keyof TurmaFormData, string>>>({});
+  const [showClonar, setShowClonar] = useState(false);
+  const isFullWidth = step >= 4;
 
   const validateStep = (s: number) => {
     const e: Partial<Record<keyof TurmaFormData, string>> = {};
@@ -512,6 +1218,7 @@ export default function NewTurmaPage() {
     if (s === 2) {
       if (!form.modalidade) e.modalidade = "Modalidade é obrigatória";
     }
+    // steps 3, 4, 5 have no required fields
     return e;
   };
 
@@ -539,6 +1246,8 @@ export default function NewTurmaPage() {
     <Users className="w-4 h-4" />,
     <CalendarLucide className="w-4 h-4" />,
     <BookOpen className="w-4 h-4" />,
+    <ClipboardList className="w-4 h-4" />,
+    <CalendarLucide className="w-4 h-4" />,
   ];
 
   return (
@@ -546,21 +1255,33 @@ export default function NewTurmaPage() {
       pageTitle={isEdit ? "Editar Turma" : "Nova Turma"}
       pageSubtitle="Vinculada a um programa existente"
     >
-      <div className="max-w-2xl mx-auto px-6 py-8 animate-fade-in">
+      {showClonar && (
+        <ClonarTemplateModal
+          onClose={() => setShowClonar(false)}
+          onConfirm={() => toast({ title: "Estrutura clonada", description: "Grade importada com sucesso." })}
+        />
+      )}
+      <div className={cn("px-6 py-8 animate-fade-in", !isFullWidth && "max-w-2xl mx-auto")}>
 
         {/* Page header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
-            <Layers className="w-5 h-5 text-success" />
+        <div className="flex items-center justify-between gap-3 mb-8 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Layers className="w-5 h-5 text-primary shrink-0" />
+            <div>
+              <h1 className="text-xl font-bold text-foreground">
+                {isEdit ? `Editar: ${editTurma?.nomeTurma}` : "Nova Turma"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {isEdit ? "Atualize as informações da turma abaixo." : "Configure as informações da nova turma passo a passo."}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">
-              {isEdit ? `Editar: ${editTurma?.nomeTurma}` : "Nova Turma"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isEdit ? "Atualize as informações da turma abaixo." : "Configure as informações da nova turma passo a passo."}
-            </p>
-          </div>
+          {!isEdit && (
+            <button onClick={() => setShowClonar(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors shrink-0">
+              <Copy className="w-3.5 h-3.5" /> Clonar template
+            </button>
+          )}
         </div>
 
         {/* Step indicator */}
@@ -574,9 +1295,9 @@ export default function NewTurmaPage() {
           {/* Step header */}
           <div className="px-6 py-5 border-b border-border">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <span className="text-primary shrink-0">
                 {stepIcons[step]}
-              </div>
+              </span>
               <div>
                 <p className="text-sm font-semibold text-foreground">{STEPS[step]}</p>
                 <p className="text-xs text-muted-foreground">
@@ -592,6 +1313,8 @@ export default function NewTurmaPage() {
             {step === 1 && <StepResponsaveis form={form} setForm={setForm} errors={errors} setErrors={setErrors} />}
             {step === 2 && <StepEstrutura form={form} setForm={setForm} errors={errors} />}
             {step === 3 && <StepGrade />}
+            {step === 4 && <StepDetalhes />}
+            {step === 5 && <StepDiasAula />}
           </div>
         </div>
 
@@ -622,7 +1345,7 @@ export default function NewTurmaPage() {
               <button onClick={handleSave}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
                 <Save className="w-3.5 h-3.5" />
-                {isEdit ? "Salvar Alterações" : "Salvar Turma"}
+                {isEdit ? "Salvar Alterações" : "Solicitar aprovação"}
               </button>
             )}
           </div>

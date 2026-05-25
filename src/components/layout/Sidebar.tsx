@@ -32,7 +32,7 @@ const navItems = [
   {
     group: "Acadêmico",
     items: [
-      { label: "Programas", icon: GraduationCap, path: "/programs" },
+      { label: "Programas e turmas", icon: GraduationCap, path: "/programs" },
       { label: "Sessões", icon: BookOpen, path: "/sessions" },
       { label: "Pré-Reservas", icon: ClipboardList, path: "/reservations" },
       { label: "Horário Oficial", icon: CheckSquare, path: "/schedule" },

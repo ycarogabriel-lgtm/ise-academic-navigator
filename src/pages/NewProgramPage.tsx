@@ -9,7 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ProgramType = "custom" | "aberto" | "imersao";
+type ProgramType = "custom" | "aberto" | "imersao" | "colaboradores" | "educacao_executiva" | "emba" | "eventos" | "internacionais" | "llm" | "mba_full_time" | "easy_humanidades";
 interface Person { id: string; name: string; role: string }
 interface ProgramFormData {
   name: string; sigla: string; tipo: ProgramType; instituto: string; responsavel: string;
@@ -34,6 +34,14 @@ const TIPO_PROGRAMA: { value: ProgramType; label: string; desc: string }[] = [
   { value: "custom", label: "Custom", desc: "Programa fechado para uma empresa ou organização específica" },
   { value: "aberto", label: "Aberto", desc: "Inscrições abertas ao público" },
   { value: "imersao", label: "Imersão", desc: "Formato intensivo com dedicação exclusiva" },
+  { value: "emba", label: "EMBA", desc: "Executive MBA — ano de conclusão para nome da turma" },
+  { value: "mba_full_time", label: "MBA Full Time", desc: "MBA de dedicação integral" },
+  { value: "educacao_executiva", label: "Educação Executiva", desc: "Programas para executivos e lideranças" },
+  { value: "colaboradores", label: "Colaboradores", desc: "Treinamento interno para colaboradores" },
+  { value: "eventos", label: "Eventos", desc: "Eventos acadêmicos e institucionais" },
+  { value: "internacionais", label: "Internacionais", desc: "Programas com parceiros internacionais" },
+  { value: "llm", label: "LLM", desc: "Master of Laws — pós-graduação em Direito" },
+  { value: "easy_humanidades", label: "Easy Humanidades", desc: "Programa de humanidades em formato flexível" },
 ];
 
 const emptyForm: ProgramFormData = {
@@ -150,8 +158,7 @@ export default function NewProgramPage() {
     const e: Partial<Record<keyof ProgramFormData, string>> = {};
     if (!form.name.trim()) e.name = "Nome do programa é obrigatório";
     if (!form.sigla.trim()) e.sigla = "Sigla é obrigatória";
-    if (!form.instituto) e.instituto = "Instituto é obrigatório";
-    if (!form.responsavel.trim()) e.responsavel = "Responsável é obrigatório";
+    if (!form.responsavel.trim()) e.responsavel = "Diretor(a) do programa é obrigatório";
     return e;
   };
 
@@ -177,9 +184,7 @@ export default function NewProgramPage() {
 
         {/* Page header */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <GraduationCap className="w-5 h-5 text-primary" />
-          </div>
+          <GraduationCap className="w-6 h-6 text-primary shrink-0" />
           <div>
             <h1 className="text-xl font-bold text-foreground">
               {isEdit ? `Editar: ${editProgram.name}` : "Novo Programa"}
@@ -212,10 +217,8 @@ export default function NewProgramPage() {
           {/* Mandatory fields */}
           <div className="px-6 py-6 space-y-5">
             <div className="flex items-center gap-2 pb-3 border-b border-border">
-              <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center text-primary">
-                <BookOpen className="w-3.5 h-3.5" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">Informações obrigatórias</p>
+              <BookOpen className="w-3.5 h-3.5 text-primary" />
+              <p className="text-sm font-semibold text-foreground">Informações do programa</p>
             </div>
 
             <div>
@@ -276,26 +279,9 @@ export default function NewProgramPage() {
               </div>
             )}
 
-            <div>
-              <FieldLabel required tooltip="Instituição responsável pela certificação">Instituto</FieldLabel>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <select
-                  className={cn("w-full pl-8 pr-3 py-2.5 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground",
-                    errors.instituto ? "border-destructive" : "border-input"
-                  )}
-                  value={form.instituto}
-                  onChange={(e) => { setForm({ ...form, instituto: e.target.value }); setErrors({ ...errors, instituto: undefined }); }}
-                >
-                  <option value="">Selecione o instituto...</option>
-                  {INSTITUTOS.map((i) => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-              {errors.instituto && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.instituto}</p>}
-            </div>
 
             <div>
-              <FieldLabel required tooltip="Responsável principal pelo programa">Responsável pelo programa</FieldLabel>
+              <FieldLabel required tooltip="Diretor(a) responsável pela condução acadêmica do programa">Diretor(a) do programa</FieldLabel>
               <PeopleAutocomplete
                 value={form.responsavel}
                 onChange={(v) => { setForm({ ...form, responsavel: v }); setErrors({ ...errors, responsavel: undefined }); }}
@@ -323,6 +309,29 @@ export default function NewProgramPage() {
             {showOptional && (
               <div className="px-6 pb-6 space-y-4 border-t border-border/50">
                 <div className="pt-4">
+                  <FieldLabel optional>Instituto</FieldLabel>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <select
+                      className="w-full pl-8 pr-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+                      value={form.instituto}
+                      onChange={(e) => setForm({ ...form, instituto: e.target.value })}
+                    >
+                      <option value="">Selecione o instituto...</option>
+                      {INSTITUTOS.map((i) => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel optional>Diretor(a) acadêmico (DA)</FieldLabel>
+                  <PeopleAutocomplete
+                    value={form.coordenador}
+                    onChange={(v) => setForm({ ...form, coordenador: v })}
+                    placeholder="Responsável pela grade acadêmica..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Muitas vezes não definido na criação do programa.</p>
+                </div>
+                <div>
                   <FieldLabel optional>Cliente</FieldLabel>
                   <input
                     className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"

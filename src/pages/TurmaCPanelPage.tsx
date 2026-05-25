@@ -454,11 +454,11 @@ export default function TurmaCPanelPage() {
   };
 
   const summaryStats = [
-    { label: "Total de Tarefas", value: totalValid, icon: <ClipboardList className="w-4 h-4" />, color: "text-primary bg-primary/10" },
-    { label: "Concluídas", value: totalDone, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-success bg-success/10" },
-    { label: "Em Andamento", value: totalInProgress, icon: <RefreshCw className="w-4 h-4" />, color: "text-primary bg-primary/10" },
-    { label: "Atrasadas", value: totalLate, icon: <AlertTriangle className="w-4 h-4" />, color: "text-destructive bg-destructive/10" },
-    { label: "Pendentes", value: totalPending, icon: <Clock className="w-4 h-4" />, color: "text-warning bg-warning/10" },
+    { label: "Total de Tarefas", value: totalValid, icon: <ClipboardList className="w-4 h-4" />, textColor: "text-primary" },
+    { label: "Concluídas", value: totalDone, icon: <CheckCircle2 className="w-4 h-4" />, textColor: "text-success" },
+    { label: "Em Andamento", value: totalInProgress, icon: <RefreshCw className="w-4 h-4" />, textColor: "text-primary" },
+    { label: "Atrasadas", value: totalLate, icon: <AlertTriangle className="w-4 h-4" />, textColor: "text-destructive" },
+    { label: "Pendentes", value: totalPending, icon: <Clock className="w-4 h-4" />, textColor: "text-warning" },
   ];
 
   return (
@@ -474,9 +474,7 @@ export default function TurmaCPanelPage() {
               <ChevronLeft className="w-4 h-4" /> Programas
             </button>
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <ClipboardList className="w-4 h-4 text-primary" />
-              </div>
+              <ClipboardList className="w-4 h-4 text-primary shrink-0" />
               <div>
                 <h1 className="font-display font-bold text-foreground text-lg leading-tight">
                   cPanel — {turmaName}
@@ -506,9 +504,9 @@ export default function TurmaCPanelPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryStats.map((s) => (
             <div key={s.label} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
-              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", s.color)}>
+              <span className={cn("shrink-0", s.textColor)}>
                 {s.icon}
-              </div>
+              </span>
               <div className="min-w-0">
                 <p className="text-lg font-bold text-foreground leading-none">{s.value}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{s.label}</p>

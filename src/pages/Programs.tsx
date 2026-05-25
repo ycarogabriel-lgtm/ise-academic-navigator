@@ -7,7 +7,7 @@ import {
   AlertCircle, CheckCircle2, Clock, ChevronDown, Hash, Sparkles,
   ArrowRight, FlaskConical, Send, Save, FileText, MapPin, BookMarked,
   ChevronLeft, Calendar as CalendarLucide, Tag, DollarSign, Globe,
-  Briefcase, UserCheck, Cpu
+  Briefcase, UserCheck, Cpu, LayoutGrid, List, Circle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ProgramStatus = "draft" | "awaiting_approval" | "reserved" | "final" | "inactive" | "deleted";
-type ProgramType = "custom" | "aberto" | "imersao";
+type ProgramType = "custom" | "aberto" | "imersao" | "colaboradores" | "educacao_executiva" | "emba" | "eventos" | "internacionais" | "llm" | "mba_full_time" | "easy_humanidades";
 type ModalityType = "presencial" | "hibrido" | "online";
 type LocalType = "campus_ise" | "externo";
 
@@ -79,7 +79,16 @@ const TIPO_PROGRAMA: { value: ProgramType; label: string; desc: string }[] = [
   { value: "custom", label: "Custom", desc: "Programa fechado para uma empresa ou organização específica" },
   { value: "aberto", label: "Aberto", desc: "Inscrições abertas ao público" },
   { value: "imersao", label: "Imersão", desc: "Formato intensivo com dedicação exclusiva" },
+  { value: "emba", label: "EMBA", desc: "Executive MBA — ano de conclusão para nome da turma" },
+  { value: "mba_full_time", label: "MBA Full Time", desc: "MBA de dedicação integral" },
+  { value: "educacao_executiva", label: "Educação Executiva", desc: "Programas para executivos e líderanças" },
+  { value: "colaboradores", label: "Colaboradores", desc: "Treinamento interno para colaboradores" },
+  { value: "eventos", label: "Eventos", desc: "Eventos acadêmicos e institucionais" },
+  { value: "internacionais", label: "Internacionais", desc: "Programas com parceiros internacionais" },
+  { value: "llm", label: "LLM", desc: "Master of Laws — pós-graduação em Direito" },
+  { value: "easy_humanidades", label: "Easy Humanidades", desc: "Programa de humanidades em formato flexível" },
 ];
+const SLOTS = ["M1", "M2", "M3", "I1", "T1", "T2", "T3", "N1", "N2"];
 const MODALIDADES: { value: ModalityType; label: string }[] = [
   { value: "presencial", label: "Presencial" },
   { value: "hibrido", label: "Híbrido" },
@@ -89,12 +98,11 @@ const LOCAIS: { value: LocalType; label: string }[] = [
   { value: "campus_ise", label: "Campus ISE" },
   { value: "externo", label: "Externo" },
 ];
-const SLOTS = ["M1", "M2", "T1", "T2", "N1", "N2"];
 
 const statusConfig: Record<ProgramStatus, { label: string; class: string; icon: React.ReactNode }> = {
   draft: { label: "Rascunho", class: "bg-muted text-muted-foreground border-muted-foreground/20", icon: <FileText className="w-3 h-3" /> },
-  awaiting_approval: { label: "Aguardando Aprovação", class: "bg-warning/10 text-warning border-warning/30", icon: <Clock className="w-3 h-3" /> },
-  reserved: { label: "Reservado", class: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="w-3 h-3" /> },
+  awaiting_approval: { label: "Em aprovação", class: "bg-warning/10 text-warning border-warning/30", icon: <Clock className="w-3 h-3" /> },
+  reserved: { label: "Aprovado", class: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="w-3 h-3" /> },
   final: { label: "Finalizado", class: "bg-primary/10 text-primary border-primary/20", icon: <CheckCircle2 className="w-3 h-3" /> },
   inactive: { label: "Inativo", class: "bg-muted text-muted-foreground border-border opacity-60", icon: <EyeOff className="w-3 h-3" /> },
   deleted: { label: "Deletado", class: "bg-destructive/10 text-destructive border-destructive/20", icon: <Trash2 className="w-3 h-3" /> },
@@ -103,7 +111,7 @@ const statusConfig: Record<ProgramStatus, { label: string; class: string; icon: 
 const turmaStatusConfig: Record<string, { label: string; class: string }> = {
   draft: { label: "Rascunho", class: "bg-muted text-muted-foreground border-muted-foreground/20" },
   active: { label: "Ativo", class: "bg-success/10 text-success border-success/20" },
-  awaiting_approval: { label: "Aguardando Aprovação", class: "bg-warning/10 text-warning border-warning/30" },
+  awaiting_approval: { label: "Em aprovação", class: "bg-warning/10 text-warning border-warning/30" },
 };
 
 const initialPrograms: Program[] = [
@@ -161,9 +169,7 @@ function FieldLabel({ children, required, optional, tooltip }: {
 function SectionHeader({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle?: string }) {
   return (
     <div className="flex items-center gap-2.5 mb-4 pb-2 border-b border-border">
-      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-        {icon}
-      </div>
+      <span className="text-primary shrink-0">{icon}</span>
       <div>
         <p className="text-sm font-semibold text-foreground">{title}</p>
         {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
@@ -175,9 +181,9 @@ function SectionHeader({ icon, title, subtitle }: { icon: React.ReactNode; title
 function InfoRow({ label, value, icon }: { label: string; value?: string; icon?: React.ReactNode }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-2 py-2 border-b border-border/50 last:border-0">
-      {icon && <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>}
-      <div className="flex-1 min-w-0">
+    <div className="flex items-center gap-2.5 py-2.5">
+      {icon && <span className="shrink-0 text-foreground">{icon}</span>}
+      <div className="flex flex-col gap-0.5 min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-sm text-foreground font-medium truncate">{value}</p>
       </div>
@@ -336,8 +342,7 @@ function ProgramModal({
     const e: Partial<Record<keyof ProgramFormData, string>> = {};
     if (!form.name.trim()) e.name = "Nome do programa é obrigatório";
     if (!form.sigla.trim()) e.sigla = "Sigla é obrigatória";
-    if (!form.instituto) e.instituto = "Instituto é obrigatório";
-    if (!form.responsavel.trim()) e.responsavel = "Responsável é obrigatório";
+    if (!form.responsavel.trim()) e.responsavel = "Diretor(a) é obrigatório";
     return e;
   };
 
@@ -353,9 +358,7 @@ function ProgramModal({
         <div className="sticky top-0 bg-card border-b border-border px-6 py-4 rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <GraduationCap className="w-4 h-4 text-primary" />
-              </div>
+              <GraduationCap className="w-5 h-5 text-primary" />
               <div>
                 <h2 className="font-semibold text-foreground text-base">
                   {mode === "create" ? "Novo Programa" : `Editar: ${program?.name}`}
@@ -386,7 +389,7 @@ function ProgramModal({
           )}
 
           <div>
-            <SectionHeader icon={<BookOpen className="w-3.5 h-3.5" />} title="Informações obrigatórias" />
+            <SectionHeader icon={<BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />} title="Informações obrigatórias" />
             <div className="space-y-4">
               <div>
                 <FieldLabel required tooltip="Nome fantasia do programa como será reconhecido institucionalmente">Nome do programa</FieldLabel>
@@ -455,7 +458,7 @@ function ProgramModal({
               </div>
 
               <div>
-                <FieldLabel required tooltip="Responsável principal pelo programa">Responsável pelo programa</FieldLabel>
+                <FieldLabel required tooltip="Responsável pela condução acadêmica do programa">Diretor(a) do programa</FieldLabel>
                 <PeopleAutocomplete
                   value={form.responsavel}
                   onChange={(v) => { setForm({ ...form, responsavel: v }); setErrors({ ...errors, responsavel: undefined }); }}
@@ -588,7 +591,7 @@ function TurmaFormFields({
 
   if (step === 0) return (
     <div className="space-y-4">
-      <SectionHeader icon={<Hash className="w-3.5 h-3.5" />} title="Identificação da Turma" subtitle="Dados que definem a turma institucionalmente" />
+      <SectionHeader icon={<Hash className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />} title="Identificação da Turma" subtitle="Dados que definem a turma institucionalmente" />
 
       <div>
         <FieldLabel required>Programa relacionado</FieldLabel>
@@ -675,7 +678,7 @@ function TurmaFormFields({
 
   if (step === 1) return (
     <div className="space-y-4">
-      <SectionHeader icon={<Users className="w-3.5 h-3.5" />} title="Equipe Responsável" subtitle="Defina os responsáveis por cada área da turma" />
+      <SectionHeader icon={<Users className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />} title="Equipe Responsável" subtitle="Defina os responsáveis por cada área da turma" />
 
       <div>
         <FieldLabel required>Diretor do programa</FieldLabel>
@@ -709,7 +712,7 @@ function TurmaFormFields({
 
   if (step === 2) return (
     <div className="space-y-4">
-      <SectionHeader icon={<CalendarLucide className="w-3.5 h-3.5" />} title="Estrutura Acadêmica" subtitle="Defina a estrutura e o período da turma" />
+      <SectionHeader icon={<CalendarLucide className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />} title="Estrutura Acadêmica" subtitle="Defina a estrutura e o período da turma" />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -767,7 +770,7 @@ function TurmaFormFields({
 
   if (step === 3) return (
     <div className="space-y-4">
-      <SectionHeader icon={<BookOpen className="w-3.5 h-3.5" />} title="Preenchimento da Grade" subtitle="Competência do Diretor Acadêmico — slots teóricos por período" />
+      <SectionHeader icon={<BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />} title="Preenchimento da Grade" subtitle="Competência do Diretor Acadêmico — slots teóricos por período" />
 
       <div className="bg-warning/5 border border-warning/20 rounded-xl p-4 flex gap-3">
         <AlertCircle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
@@ -859,9 +862,7 @@ function TurmaModal({
         <div className="border-b border-border px-6 py-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
-                <Layers className="w-4 h-4 text-success" />
-              </div>
+              <Layers className="w-5 h-5 text-primary" />
               <div>
                 <h2 className="font-semibold text-foreground text-base">Nova Turma</h2>
                 <p className="text-xs text-muted-foreground">Vinculada a um programa existente</p>
@@ -964,9 +965,7 @@ function TurmaEditModal({
         <div className="border-b border-border px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Pencil className="w-4 h-4 text-primary" />
-              </div>
+              <Pencil className="w-5 h-5 text-primary" />
               <div>
                 <h2 className="font-semibold text-foreground text-base">Editar Turma</h2>
                 <p className="text-xs text-muted-foreground font-mono">{turma.siglaTurma} · {turma.nomeTurma}</p>
@@ -1058,9 +1057,7 @@ function ProgramDetailDrawer({
         <div className="px-6 py-5 border-b border-border">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <GraduationCap className="w-5 h-5 text-primary" />
-              </div>
+              <GraduationCap className="w-5 h-5 text-primary shrink-0" />
               <div className="min-w-0">
                 <h2 className="font-bold text-foreground text-base leading-tight truncate">{program.name}</h2>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -1093,13 +1090,13 @@ function ProgramDetailDrawer({
           {/* Basic Info */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Informações do Programa</p>
-            <div className="bg-muted/30 rounded-xl border border-border overflow-hidden">
-              <InfoRow label="Instituto" value={program.instituto} icon={<Building2 className="w-3.5 h-3.5" />} />
-              <InfoRow label="Cliente" value={program.cliente} icon={<Briefcase className="w-3.5 h-3.5" />} />
-              <InfoRow label="Responsável" value={program.responsavel} icon={<UserCheck className="w-3.5 h-3.5" />} />
-              <InfoRow label="Coordenador" value={program.coordenador} icon={<Users className="w-3.5 h-3.5" />} />
-              <InfoRow label="Responsável Planejamento" value={program.responsavelPlanejamento} icon={<ClipboardList className="w-3.5 h-3.5" />} />
-              {program.periodo && <InfoRow label="Período" value={program.periodo} icon={<CalendarIcon className="w-3.5 h-3.5" />} />}
+            <div className="divide-y divide-border/50">
+              <InfoRow label="Instituto" value={program.instituto} icon={<Building2 className="w-4 h-4" />} />
+              <InfoRow label="Cliente" value={program.cliente} icon={<Briefcase className="w-4 h-4" />} />
+              <InfoRow label="Responsável" value={program.responsavel} icon={<UserCheck className="w-4 h-4" />} />
+              <InfoRow label="Coordenador" value={program.coordenador} icon={<Users className="w-4 h-4" />} />
+              <InfoRow label="Responsável Planejamento" value={program.responsavelPlanejamento} icon={<ClipboardList className="w-4 h-4" />} />
+              {program.periodo && <InfoRow label="Período" value={program.periodo} icon={<CalendarIcon className="w-4 h-4" />} />}
             </div>
             {program.extraResponsaveis?.length > 0 && (
               <div className="mt-3">
@@ -1149,9 +1146,7 @@ function ProgramDetailDrawer({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                            <Layers className="w-3.5 h-3.5 text-primary" />
-                          </div>
+                          <Layers className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">{turma.nomeTurma}</p>
                             <p className="text-xs font-mono text-muted-foreground">{turma.siglaTurma}</p>
@@ -1281,10 +1276,258 @@ function DeleteConfirmModal({ program, onConfirm, onClose }: { program: Program;
   );
 }
 
+// ─── Turma Card ───────────────────────────────────────────────────────────────
+
+function TurmaCard({ turma, program, viewMode = "grid", onClick }: { turma: Turma; program: Program; viewMode?: "grid" | "list"; onClick?: () => void }) {
+  const ts = turmaStatusConfig[turma.status] || turmaStatusConfig.draft;
+  const fmt = (d?: Date) => d ? format(d, "MM/yyyy", { locale: ptBR }) : undefined;
+  const totalSessoes = turma.sessoes?.length ?? 0;
+  const allocatedSessoes = turma.sessoes?.filter((s) => s.dia !== undefined).length ?? 0;
+  const allocPct = totalSessoes > 0 ? Math.round((allocatedSessoes / totalSessoes) * 100) : 0;
+  const tipoLabel = TIPO_PROGRAMA.find((t) => t.value === (turma.tipoPrograma || program.tipo))?.label;
+
+  if (viewMode === "list") {
+    return (
+      <div onClick={onClick}
+        className="flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-muted/30 transition-colors cursor-pointer group">
+        <span className="w-20 text-xs font-mono text-muted-foreground shrink-0 truncate">{turma.siglaTurma}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{turma.nomeTurma}</p>
+          <p className="text-xs text-muted-foreground truncate">{program.name}</p>
+        </div>
+        <div className="w-28 shrink-0">
+          <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", ts.class)}>{ts.label}</span>
+        </div>
+        <span className="text-xs text-muted-foreground w-24 shrink-0 hidden sm:block">
+          {fmt(turma.periodoStart) ?? "—"}{turma.periodoEnd ? ` – ${fmt(turma.periodoEnd)}` : ""}
+        </span>
+        <span className="text-xs text-muted-foreground w-32 truncate shrink-0 hidden md:block">{turma.diretorPrograma || "—"}</span>
+        <div className="w-36 shrink-0 hidden lg:flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{allocatedSessoes}/{totalSessoes} sess.</span>
+          </div>
+          <div className="h-1 bg-muted rounded-full overflow-hidden">
+            <div className={cn("h-full rounded-full transition-all",
+              allocPct === 100 ? "bg-success" : allocPct > 50 ? "bg-primary" : "bg-warning"
+            )} style={{ width: `${allocPct}%` }} />
+          </div>
+        </div>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={onClick}
+      className="bg-card border border-border rounded-xl p-5 hover:border-primary/40 transition-all group cursor-pointer">
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-xs font-mono font-semibold text-muted-foreground">{turma.siglaTurma}</span>
+        <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", ts.class)}>{ts.label}</span>
+      </div>
+      <h3 className="font-semibold text-foreground text-sm mb-0.5 group-hover:text-primary transition-colors">{turma.nomeTurma}</h3>
+      <p className="text-xs text-muted-foreground mb-3">{program.name}</p>
+      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+        {tipoLabel && <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">{tipoLabel}</span>}
+        {turma.modalidade && (
+          <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+            {MODALIDADES.find((m) => m.value === turma.modalidade)?.label}
+          </span>
+        )}
+        {turma.local && (
+          <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+            {LOCAIS.find((l) => l.value === turma.local)?.label}
+          </span>
+        )}
+        {program.cliente && (
+          <span className="text-xs px-2 py-0.5 rounded-md bg-primary/5 text-primary border border-primary/10">{program.cliente}</span>
+        )}
+      </div>
+      <div className="border-t border-border pt-2.5">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <p className="text-xs text-muted-foreground">Período</p>
+            <p className="text-xs font-medium text-foreground">
+              {fmt(turma.periodoStart) ?? "—"}{turma.periodoEnd ? ` – ${fmt(turma.periodoEnd)}` : ""}
+            </p>
+          </div>
+          {turma.numParticipantes && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Participantes</p>
+              <p className="text-xs font-medium text-foreground">{turma.numParticipantes}</p>
+            </div>
+          )}
+          {turma.diretorPrograma && !turma.numParticipantes && (
+            <div className="text-right min-w-0 ml-2">
+              <p className="text-xs text-muted-foreground">Diretor(a)</p>
+              <p className="text-xs font-medium text-foreground truncate max-w-[140px]">{turma.diretorPrograma}</p>
+            </div>
+          )}
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-muted-foreground">Alocação de recursos</p>
+            <p className="text-xs font-medium text-foreground">{allocatedSessoes}/{totalSessoes} sessões</p>
+          </div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all",
+                allocPct === 100 ? "bg-success" : allocPct > 50 ? "bg-primary" : "bg-warning"
+              )}
+              style={{ width: `${allocPct}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Turma Detail Drawer ──────────────────────────────────────────────────────
+
+function TurmaDetailDrawer({
+  turma, program, onClose, onEdit, onCPanel,
+}: {
+  turma: Turma; program: Program;
+  onClose: () => void; onEdit: () => void; onCPanel: () => void;
+}) {
+  const ts = turmaStatusConfig[turma.status] || turmaStatusConfig.draft;
+  const fmt = (d?: Date) => d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "—";
+  const totalSessoes = turma.sessoes?.length ?? 0;
+  const allocatedSessoes = turma.sessoes?.filter((s) => s.dia !== undefined).length ?? 0;
+  const allocPct = totalSessoes > 0 ? Math.round((allocatedSessoes / totalSessoes) * 100) : 0;
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-card border-l border-border shadow-2xl flex flex-col animate-slide-in-right">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-border">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Layers className="w-5 h-5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <h2 className="font-bold text-foreground text-base leading-tight truncate">{turma.nomeTurma}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-xs font-mono text-muted-foreground">{turma.siglaTurma}</span>
+                  <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", ts.class)}>{ts.label}</span>
+                  {turma.modalidade && (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                      {MODALIDADES.find((m) => m.value === turma.modalidade)?.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={onEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors text-foreground">
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </button>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {/* Programa */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Programa</p>
+            <div className="divide-y divide-border/50">
+              <InfoRow label="Nome" value={program.name} icon={<GraduationCap className="w-4 h-4" />} />
+              <InfoRow label="Sigla" value={program.sigla} icon={<Hash className="w-4 h-4" />} />
+              <InfoRow label="Cliente" value={program.cliente} icon={<Briefcase className="w-4 h-4" />} />
+              <InfoRow label="Instituto" value={program.instituto} icon={<Building2 className="w-4 h-4" />} />
+            </div>
+          </div>
+
+          {/* Responsáveis */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Responsáveis</p>
+            <div className="divide-y divide-border/50">
+              <InfoRow label="Diretor(a) de Programa" value={turma.diretorPrograma} icon={<UserCheck className="w-4 h-4" />} />
+              <InfoRow label="Diretor(a) Acadêmico" value={turma.diretorAcademico} icon={<BookOpen className="w-4 h-4" />} />
+              <InfoRow label="Coordenador(a)" value={turma.coordenador} icon={<Users className="w-4 h-4" />} />
+              <InfoRow label="Planejamento" value={turma.planejamento} icon={<ClipboardList className="w-4 h-4" />} />
+              <InfoRow label="Produção de Materiais" value={turma.producaoMateriais} icon={<FileText className="w-4 h-4" />} />
+            </div>
+          </div>
+
+          {/* Estrutura */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Estrutura</p>
+            <div className="divide-y divide-border/50">
+              <InfoRow label="Modalidade" value={MODALIDADES.find((m) => m.value === turma.modalidade)?.label} icon={<CalendarLucide className="w-4 h-4" />} />
+              <InfoRow label="Local" value={LOCAIS.find((l) => l.value === turma.local)?.label} icon={<MapPin className="w-4 h-4" />} />
+              <InfoRow label="Período" value={turma.periodoStart ? `${fmt(turma.periodoStart)} – ${fmt(turma.periodoEnd)}` : undefined} icon={<CalendarIcon className="w-4 h-4" />} />
+              <InfoRow label="Nº participantes" value={turma.numParticipantes?.toString()} icon={<Users className="w-4 h-4" />} />
+              <InfoRow label="Código financeiro" value={turma.codigoFinanceiro} icon={<DollarSign className="w-4 h-4" />} />
+            </div>
+          </div>
+
+          {/* Sessões + alocação */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Sessões{totalSessoes > 0 ? ` (${totalSessoes})` : ""}
+            </p>
+            {totalSessoes > 0 ? (
+              <div className="bg-muted/30 rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-muted-foreground">Alocação de recursos</p>
+                  <p className="text-xs font-medium text-foreground">{allocatedSessoes}/{totalSessoes}</p>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : allocPct > 50 ? "bg-primary" : "bg-warning")}
+                    style={{ width: `${allocPct}%` }} />
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  {turma.sessoes.slice(0, 4).map((s) => (
+                    <div key={s.id} className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-muted-foreground w-8 shrink-0">{s.slot}</span>
+                      <span className="text-xs text-foreground truncate flex-1">{s.titulo || s.tema}</span>
+                      {s.dia !== undefined ? (
+                        <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
+                      ) : (
+                        <Circle className="w-3 h-3 text-muted-foreground shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                  {turma.sessoes.length > 4 && (
+                    <p className="text-xs text-muted-foreground">+{turma.sessoes.length - 4} sessões</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-muted/20 border border-dashed border-border rounded-xl py-6 text-center">
+                <p className="text-xs text-muted-foreground">Nenhuma sessão configurada</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border bg-card/80 flex items-center gap-2">
+          <button onClick={onCPanel}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary/30 text-primary rounded-lg hover:bg-primary/5 transition-colors">
+            <ClipboardList className="w-4 h-4" /> Abrir cPanel
+          </button>
+          <button onClick={onEdit}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+            <Pencil className="w-4 h-4" /> Editar turma
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Program Card ─────────────────────────────────────────────────────────────
 
-function ProgramCard({ prog, onCardClick, onEdit, onDuplicate, onDelete, onToggle, onNewTurma }: {
+function ProgramCard({ prog, viewMode = "grid", onCardClick, onEdit, onDuplicate, onDelete, onToggle, onNewTurma }: {
   prog: Program;
+  viewMode?: "grid" | "list";
   onCardClick: () => void;
   onEdit: () => void; onDuplicate: () => void; onDelete: () => void;
   onToggle: () => void; onNewTurma: () => void;
@@ -1292,6 +1535,31 @@ function ProgramCard({ prog, onCardClick, onEdit, onDuplicate, onDelete, onToggl
   const [menuOpen, setMenuOpen] = useState(false);
   const s = statusConfig[prog.status];
 
+  if (viewMode === "list") {
+    return (
+      <div onClick={onCardClick}
+        className={cn("flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-muted/30 transition-colors cursor-pointer group",
+          prog.status === "inactive" && "opacity-60"
+        )}>
+        <span className="w-20 text-xs font-mono text-muted-foreground shrink-0 truncate">{prog.sigla || prog.code}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{prog.name}</p>
+          {prog.cliente && <p className="text-xs text-muted-foreground truncate">{prog.cliente}</p>}
+        </div>
+        {prog.tipo && <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground shrink-0 hidden sm:block">{TIPO_PROGRAMA.find((t) => t.value === prog.tipo)?.label}</span>}
+        <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium shrink-0", s.class)}>{s.icon}{s.label}</span>
+        <span className="text-xs text-muted-foreground shrink-0 hidden md:block">{prog.turmas?.length ?? 0} turmas</span>
+        <span className="text-xs text-muted-foreground w-32 shrink-0 hidden lg:block truncate">{prog.periodo || "—"}</span>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+          <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors"><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></button>
+          <button onClick={() => { setMenuOpen(!menuOpen); }} className="p-1.5 rounded-md hover:bg-muted transition-colors relative">
+            <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        </div>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+      </div>
+    );
+  }
   return (
     <div
       role="button"
@@ -1306,16 +1574,16 @@ function ProgramCard({ prog, onCardClick, onEdit, onDuplicate, onDelete, onToggl
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <GraduationCap className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-xs font-mono text-muted-foreground">{prog.sigla || prog.code}</p>
-            <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", s.class)}>
-              {s.icon}{s.label}
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-xs font-mono font-semibold text-muted-foreground">{prog.sigla || prog.code}</span>
+            <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium border border-primary/20">
+              {prog.turmas.reduce((acc, t) => acc + (t.sessoes?.length ?? 0), 0)} sessões
             </span>
           </div>
+          <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", s.class)}>
+            {s.icon}{s.label}
+          </span>
         </div>
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
@@ -1485,11 +1753,11 @@ const MOCK_APPROVALS: ApprovalItem[] = [
   { id: 4, type: "turma", label: "Liderança Estratégica", turma: "T24B", solicitante: "Paula Neves", data: "Há 2d", recurso: "Solicitação de aprovação de turma" },
 ];
 
-const APPROVAL_TYPE_CONFIG: Record<ApprovalType, { icon: React.ReactNode; color: string }> = {
-  program: { icon: <GraduationCap className="w-3.5 h-3.5" />, color: "bg-primary/10 text-primary" },
-  turma: { icon: <Layers className="w-3.5 h-3.5" />, color: "bg-success/10 text-success" },
-  reserva: { icon: <Building2 className="w-3.5 h-3.5" />, color: "bg-warning/10 text-warning" },
-  bloqueio: { icon: <AlertCircle className="w-3.5 h-3.5" />, color: "bg-destructive/10 text-destructive" },
+const APPROVAL_TYPE_CONFIG: Record<ApprovalType, { icon: React.ReactNode; textColor: string }> = {
+  program: { icon: <GraduationCap className="w-4 h-4" />, textColor: "text-primary" },
+  turma: { icon: <Layers className="w-4 h-4" />, textColor: "text-success" },
+  reserva: { icon: <Building2 className="w-4 h-4" />, textColor: "text-warning" },
+  bloqueio: { icon: <AlertCircle className="w-4 h-4" />, textColor: "text-destructive" },
 };
 
 function ApprovalsPanel() {
@@ -1524,7 +1792,7 @@ function ApprovalsPanel() {
             return (
               <div key={item.id} className="px-5 py-4">
                 <div className="flex items-start gap-3 mb-3">
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", tc.color)}>
+                  <div className={cn("shrink-0", tc.textColor)}>
                     {tc.icon}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1566,18 +1834,22 @@ export default function Programs() {
   const [programs, setPrograms] = useState<Program[]>(initialPrograms);
   const [search, setSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState("all");
-  const [activeTab, setActiveTab] = useState<"programs" | "tasks" | "approvals">("programs");
-  const navigate = useNavigate();
-
-  // Modal/drawer state
-  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null); // detail drawer
+  const [activeTab, setActiveTab] = useState<"programs" | "turmas">("programs");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+  const [selectedTurma, setSelectedTurma] = useState<{ turma: Turma; program: Program } | null>(null);
   const [deleteProgram, setDeleteProgram] = useState<Program | null>(null);
+  const navigate = useNavigate();
   const [pendingPreReservation, setPendingPreReservation] = useState<string | null>(null);
 
   const openNewProgram = () => navigate("/programs/new");
   const openEditProgram = (prog: Program) => navigate("/programs/edit", { state: { program: prog } });
   const openNewTurma = (programId?: number) => navigate("/programs/turma/new", { state: { programs, initialProgramId: programId } });
   const openEditTurma = (turma: Turma, programId: number) => navigate("/programs/turma/edit", { state: { programs, turma, isEdit: true, programId } });
+
+  const allTurmas = programs
+    .filter((p) => p.status !== "deleted")
+    .flatMap((p) => (p.turmas || []).map((t) => ({ turma: t, program: p })));
 
   const filtered = programs.filter((p) => {
     if (p.status === "deleted") return false;
@@ -1641,8 +1913,8 @@ export default function Programs() {
   const statusFilters = [
     { key: "all", label: "Todos" },
     { key: "draft", label: "Rascunho" },
-    { key: "awaiting_approval", label: "Aguardando" },
-    { key: "reserved", label: "Reservado" },
+    { key: "awaiting_approval", label: "Em aprovação" },
+    { key: "reserved", label: "Aprovado" },
     { key: "final", label: "Finalizado" },
     { key: "inactive", label: "Inativo" },
   ];
@@ -1653,7 +1925,7 @@ export default function Programs() {
   }, {} as Record<string, number>);
 
   return (
-    <AppLayout pageTitle="Programas" pageSubtitle="Gestão e planejamento de programas acadêmicos">
+    <AppLayout pageTitle="Programas e turmas" pageSubtitle="Gestão e planejamento de programas e turmas acadêmicas">
       <div className="p-6 space-y-5 animate-fade-in">
 
         {/* Pre-reservation notification banner */}
@@ -1677,58 +1949,41 @@ export default function Programs() {
           </div>
         )}
 
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Total Ativo", value: programs.filter((p) => !["deleted", "inactive"].includes(p.status)).length, icon: <GraduationCap className="w-4 h-4" />, color: "text-primary" },
-            { label: "Rascunhos", value: counts["draft"] || 0, icon: <FileText className="w-4 h-4" />, color: "text-muted-foreground" },
-            { label: "Aguard. Aprovação", value: counts["awaiting_approval"] || 0, icon: <Clock className="w-4 h-4" />, color: "text-warning" },
-            { label: "Finalizados", value: counts["final"] || 0, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-success" },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-              <div className={cn("w-8 h-8 rounded-lg bg-muted flex items-center justify-center", stat.color)}>{stat.icon}</div>
-              <div>
-                <p className="text-xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+
+        {/* Main tabs + search + actions */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 p-1 bg-muted rounded-xl">
+                {([
+                  { key: "programs", label: "Programas", icon: <GraduationCap className="w-3.5 h-3.5" /> },
+                  { key: "turmas", label: "Turmas", icon: <Layers className="w-3.5 h-3.5" /> },
+                ] as const).map((tab) => (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                    className={cn("flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                      activeTab === tab.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}>
+                    {tab.icon}{tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1 p-1 bg-muted rounded-xl">
+                <button onClick={() => setViewMode("grid")}
+                  className={cn("p-1.5 rounded-md transition-all", viewMode === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button onClick={() => setViewMode("list")}
+                  className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  <List className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Main tabs */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex gap-1 p-1 bg-muted rounded-xl">
-            {([
-              { key: "programs", label: "Programas", icon: <GraduationCap className="w-3.5 h-3.5" /> },
-              { key: "tasks", label: `Tarefas (${MOCK_TASKS.length})`, icon: <ClipboardList className="w-3.5 h-3.5" /> },
-              { key: "approvals", label: `Aprovações (${MOCK_APPROVALS.length})`, icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-            ] as const).map((tab) => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={cn("flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all",
-                  activeTab === tab.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}>
-                {tab.icon}{tab.label}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === "programs" && (
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input type="text" placeholder="Buscar por nome, turma, cliente..." value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-56" />
-              </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {statusFilters.map((f) => (
-                  <button key={f.key} onClick={() => setActiveStatus(f.key)}
-                    className={cn("text-xs px-2.5 py-1.5 rounded-lg border transition-all font-medium",
-                      activeStatus === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/40"
-                    )}>
-                    {f.label}{counts[f.key] !== undefined && f.key !== "all" && <span className="ml-1 opacity-70">{counts[f.key]}</span>}
-                  </button>
-                ))}
               </div>
               <button onClick={() => openNewTurma()} className="border border-border text-foreground px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-muted transition-colors">
                 <Layers className="w-4 h-4" /> Nova Turma
@@ -1737,24 +1992,72 @@ export default function Programs() {
                 <Plus className="w-4 h-4" /> Novo Programa
               </button>
             </div>
-          )}
+          </div>
+
+          {/* Status filter pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {statusFilters.map((f) => (
+              <button key={f.key} onClick={() => setActiveStatus(f.key)}
+                className={cn("text-xs px-2.5 py-1.5 rounded-lg border transition-all font-medium",
+                  activeStatus === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/40"
+                )}>
+                {f.label}{counts[f.key] !== undefined && f.key !== "all" && (
+                  <span className="ml-1 opacity-70">({counts[f.key]})</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Dropdown filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(activeTab === "programs" ? ["Todos os programas", "Todos os clientes", "Todos os tipos", "Todos os criadores"] : ["Todas as turmas", "Todos os programas", "Todos os clientes", "Todos os tipos"]).map((label) => (
+              <select key={label}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer hover:border-primary/40 transition-colors">
+                <option>{label}</option>
+              </select>
+            ))}
+          </div>
         </div>
 
         {/* Tab content */}
         {activeTab === "programs" && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((prog) => (
-                <ProgramCard key={prog.id} prog={prog}
-                  onCardClick={() => setSelectedProgram(prog)}
-                  onEdit={() => openEditProgram(prog)}
-                  onDuplicate={() => handleDuplicate(prog)}
-                  onDelete={() => setDeleteProgram(prog)}
-                  onToggle={() => handleToggleStatus(prog)}
-                  onNewTurma={() => openNewTurma(prog.id)}
-                />
-              ))}
-            </div>
+            {viewMode === "list" ? (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-muted/30">
+                  <span className="w-20 text-xs font-semibold text-muted-foreground">Sigla</span>
+                  <span className="flex-1 text-xs font-semibold text-muted-foreground">Programa</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden sm:block w-20">Tipo</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 w-28">Status</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden md:block w-16">Turmas</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden lg:block w-32">Período</span>
+                  <span className="w-16 shrink-0" />
+                </div>
+                {filtered.map((prog) => (
+                  <ProgramCard key={prog.id} prog={prog} viewMode="list"
+                    onCardClick={() => setSelectedProgram(prog)}
+                    onEdit={() => openEditProgram(prog)}
+                    onDuplicate={() => handleDuplicate(prog)}
+                    onDelete={() => setDeleteProgram(prog)}
+                    onToggle={() => handleToggleStatus(prog)}
+                    onNewTurma={() => openNewTurma(prog.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map((prog) => (
+                  <ProgramCard key={prog.id} prog={prog}
+                    onCardClick={() => setSelectedProgram(prog)}
+                    onEdit={() => openEditProgram(prog)}
+                    onDuplicate={() => handleDuplicate(prog)}
+                    onDelete={() => setDeleteProgram(prog)}
+                    onToggle={() => handleToggleStatus(prog)}
+                    onNewTurma={() => openNewTurma(prog.id)}
+                  />
+                ))}
+              </div>
+            )}
             {filtered.length === 0 && (
               <div className="text-center py-20">
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -1770,11 +2073,49 @@ export default function Programs() {
           </>
         )}
 
-        {activeTab === "tasks" && <TasksPanel onTaskClick={(route) => navigate(route)} />}
-        {activeTab === "approvals" && <ApprovalsPanel />}
+        {activeTab === "turmas" && (
+          <>
+            {viewMode === "list" ? (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-muted/30">
+                  <span className="w-20 text-xs font-semibold text-muted-foreground">Sigla</span>
+                  <span className="flex-1 text-xs font-semibold text-muted-foreground">Turma</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 w-28">Status</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden sm:block w-24">Período</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden md:block w-32">Diretor(a)</span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0 hidden lg:block w-36">Alocação</span>
+                  <span className="w-4 shrink-0" />
+                </div>
+                {allTurmas.map(({ turma, program }) => (
+                  <TurmaCard key={turma.id} turma={turma} program={program} viewMode="list"
+                    onClick={() => setSelectedTurma({ turma, program })} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {allTurmas.map(({ turma, program }) => (
+                  <TurmaCard key={turma.id} turma={turma} program={program}
+                    onClick={() => setSelectedTurma({ turma, program })} />
+                ))}
+              </div>
+            )}
+            {allTurmas.length === 0 && (
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Layers className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-foreground font-medium mb-1">Nenhuma turma encontrada</p>
+                <p className="text-muted-foreground text-sm">Crie uma nova turma para começar.</p>
+                <button onClick={() => openNewTurma()} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+                  <Plus className="w-4 h-4" /> Nova Turma
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Detail Drawer */}
+      {/* Detail Drawers */}
       {selectedProgram && (
         <ProgramDetailDrawer
           program={selectedProgram}
@@ -1788,6 +2129,21 @@ export default function Programs() {
               turmaName: turma.nomeTurma,
               programName: selectedProgram.name,
               siglaTurma: turma.siglaTurma,
+            },
+          })}
+        />
+      )}
+      {selectedTurma && (
+        <TurmaDetailDrawer
+          turma={selectedTurma.turma}
+          program={selectedTurma.program}
+          onClose={() => setSelectedTurma(null)}
+          onEdit={() => { openEditTurma(selectedTurma.turma, selectedTurma.program.id); setSelectedTurma(null); }}
+          onCPanel={() => navigate("/programs/turma/cpanel", {
+            state: {
+              turmaName: selectedTurma.turma.nomeTurma,
+              programName: selectedTurma.program.name,
+              siglaTurma: selectedTurma.turma.siglaTurma,
             },
           })}
         />
