@@ -110,7 +110,9 @@ interface Material {
   description: string;
   objective: string;
   category: string;
-  origin: "Moodle";
+  origin: "Moodle" | "manual";
+  deliveryMoment: "pre" | "during" | "post";
+  materialCategory: "digital" | "physical";
 }
 
 interface Logistics {
@@ -136,17 +138,18 @@ interface Session {
   observations: string;
   materials: Material[];
   logistics: Logistics;
+  prerequisites: number[];
 }
 
 /* ─── Seed data ──────────────────────────────────────────── */
 const PROFESSORS = ["Dr. Carlos Faria", "Dra. Ana Souza", "Dr. Pedro Costa", "Dr. Lima", "Dra. Mendes", "A definir"];
 const ROOMS = ["Sala 201", "Sala 105", "Sala 302", "Sala 102", "Auditório A", "Auditório B"];
 const MOODLE_CATALOG: Omit<Material, "id">[] = [
-  { title: "Frameworks de Estratégia", type: "slide", description: "Slides sobre Porter e Blue Ocean", objective: "Compreender modelos estratégicos", category: "Estratégia", origin: "Moodle" },
-  { title: "Caso Harvard – Netflix", type: "pdf", description: "Estudo de caso de disrução digital", objective: "Aplicar análise estratégica", category: "Cases", origin: "Moodle" },
-  { title: "Videoaula – Growth Hacking", type: "video", description: "Aula gravada sobre métricas de crescimento", objective: "Dominar técnicas de aquisição", category: "Marketing", origin: "Moodle" },
-  { title: "Quiz – Valuation", type: "quiz", description: "Exercícios de modelagem financeira", objective: "Fixar conceitos de valor", category: "Finanças", origin: "Moodle" },
-  { title: "Leitura – Liderança Adaptativa", type: "link", description: "Artigo HBR sobre liderança", objective: "Expandir repertório teórico", category: "Liderança", origin: "Moodle" },
+  { title: "Frameworks de Estratégia", type: "slide", description: "Slides sobre Porter e Blue Ocean", objective: "Compreender modelos estratégicos", category: "Estratégia", origin: "Moodle", deliveryMoment: "pre", materialCategory: "digital" },
+  { title: "Caso Harvard – Netflix", type: "pdf", description: "Estudo de caso de disrupção digital", objective: "Aplicar análise estratégica", category: "Cases", origin: "Moodle", deliveryMoment: "during", materialCategory: "digital" },
+  { title: "Videoaula – Growth Hacking", type: "video", description: "Aula gravada sobre métricas de crescimento", objective: "Dominar técnicas de aquisição", category: "Marketing", origin: "Moodle", deliveryMoment: "pre", materialCategory: "digital" },
+  { title: "Quiz – Valuation", type: "quiz", description: "Exercícios de modelagem financeira", objective: "Fixar conceitos de valor", category: "Finanças", origin: "Moodle", deliveryMoment: "during", materialCategory: "digital" },
+  { title: "Leitura – Liderança Adaptativa", type: "link", description: "Artigo HBR sobre liderança", objective: "Expandir repertório teórico", category: "Liderança", origin: "Moodle", deliveryMoment: "post", materialCategory: "digital" },
 ];
 
 const INITIAL_SESSIONS: Session[] = [
@@ -154,8 +157,9 @@ const INITIAL_SESSIONS: Session[] = [
     id: 1, program: "MBA Executivo – T24A", theme: "Estratégia Competitiva e Vantagem", discipline: "Estratégia",
     date: "2024-03-15", time: "08:00", duration: "4h", professor: "Dr. Carlos Faria", room: "Sala 201",
     status: "confirmed", moodle: true, observations: "",
-    materials: [{ id: 1, title: "Frameworks de Estratégia", type: "slide", description: "Slides sobre Porter e Blue Ocean", objective: "Compreender modelos estratégicos", category: "Estratégia", origin: "Moodle" }],
+    materials: [{ id: 1, title: "Frameworks de Estratégia", type: "slide", description: "Slides sobre Porter e Blue Ocean", objective: "Compreender modelos estratégicos", category: "Estratégia", origin: "Moodle", deliveryMoment: "pre", materialCategory: "digital" }],
     logistics: { meal: "Restaurante A – Almoço buffet", event: "", ra: "RA-0012", special: "", notes: "Projetor duplo necessário" },
+    prerequisites: [],
   },
   {
     id: 2, program: "MBA Executivo – T24A", theme: "Análise de Cenários e Posicionamento", discipline: "Estratégia",
@@ -163,6 +167,7 @@ const INITIAL_SESSIONS: Session[] = [
     status: "confirmed", moodle: false, observations: "",
     materials: [],
     logistics: { meal: "", event: "", ra: "", special: "", notes: "" },
+    prerequisites: [1],
   },
   {
     id: 3, program: "Liderança Estratégica – T24B", theme: "Modelos de Liderança Contemporânea", discipline: "Liderança",
@@ -170,20 +175,23 @@ const INITIAL_SESSIONS: Session[] = [
     status: "conflict", moodle: false, observations: "Docente não confirmado",
     materials: [],
     logistics: { meal: "", event: "", ra: "", special: "", notes: "" },
+    prerequisites: [],
   },
   {
     id: 4, program: "Marketing Digital – T24A", theme: "Growth Hacking e Aquisição Digital", discipline: "Marketing",
     date: "2024-03-20", time: "09:00", duration: "4h", professor: "Dr. Pedro Costa", room: "Sala 302",
     status: "pending", moodle: true, observations: "",
-    materials: [{ id: 2, title: "Videoaula – Growth Hacking", type: "video", description: "Aula gravada sobre métricas de crescimento", objective: "Dominar técnicas de aquisição", category: "Marketing", origin: "Moodle" }],
+    materials: [{ id: 2, title: "Videoaula – Growth Hacking", type: "video", description: "Aula gravada sobre métricas de crescimento", objective: "Dominar técnicas de aquisição", category: "Marketing", origin: "Moodle", deliveryMoment: "pre", materialCategory: "digital" }],
     logistics: { meal: "", event: "Workshop externo", ra: "", special: "", notes: "" },
+    prerequisites: [],
   },
   {
     id: 5, program: "Esp. Finanças – T23B", theme: "Valuation e Modelagem Financeira", discipline: "Finanças",
     date: "2024-03-13", time: "14:00", duration: "4h", professor: "Dra. Ana Souza", room: "Sala 105",
     status: "confirmed", moodle: true, observations: "",
-    materials: [{ id: 3, title: "Quiz – Valuation", type: "quiz", description: "Exercícios de modelagem financeira", objective: "Fixar conceitos de valor", category: "Finanças", origin: "Moodle" }],
+    materials: [{ id: 3, title: "Quiz – Valuation", type: "quiz", description: "Exercícios de modelagem financeira", objective: "Fixar conceitos de valor", category: "Finanças", origin: "Moodle", deliveryMoment: "during", materialCategory: "digital" }],
     logistics: { meal: "Restaurante B – Jantar", event: "", ra: "RA-0023", special: "Sala com lousa dupla", notes: "" },
+    prerequisites: [],
   },
 ];
 
@@ -215,6 +223,7 @@ function SessionModal({
     id: Date.now(), program: "", theme: "", discipline: "", date: "", time: "", duration: "4h",
     professor: "", room: "", status: "pending", moodle: false, observations: "",
     materials: [], logistics: { meal: "", event: "", ra: "", special: "", notes: "" },
+    prerequisites: [],
   };
   const [form, setForm] = useState<Session>(session ?? blank);
   const [errors, setErrors] = useState<Partial<Record<keyof Session, string>>>({});
@@ -363,6 +372,34 @@ function SessionModal({
               <textarea className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 rows={2} value={form.observations} onChange={(e) => set("observations", e.target.value)} placeholder="Informações adicionais..." />
             </div>
+
+            {/* Pré-requisitos */}
+            {sessions.filter((s) => s.id !== form.id && s.program === form.program).length > 0 && (
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Pré-requisitos (sessões que devem ocorrer antes desta)
+                </label>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto border border-input rounded-lg p-2 bg-background">
+                  {sessions.filter((s) => s.id !== form.id && s.program === form.program).map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.prerequisites.includes(s.id)}
+                        onChange={(e) => {
+                          const updated = e.target.checked
+                            ? [...form.prerequisites, s.id]
+                            : form.prerequisites.filter((pid) => pid !== s.id);
+                          setForm((f) => ({ ...f, prerequisites: updated }));
+                        }}
+                        className="rounded border-input"
+                      />
+                      <span className="text-xs text-foreground">{s.theme}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{s.date}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -413,6 +450,8 @@ function MaterialModal({
   const [selected, setSelected] = useState<Omit<Material, "id"> | null>(null);
   const [desc, setDesc] = useState("");
   const [obj, setObj] = useState("");
+  const [deliveryMoment, setDeliveryMoment] = useState<Material["deliveryMoment"]>("during");
+  const [materialCategory, setMaterialCategory] = useState<Material["materialCategory"]>("digital");
 
   const filtered = MOODLE_CATALOG.filter(
     (m) =>
@@ -422,7 +461,7 @@ function MaterialModal({
 
   const handleAdd = () => {
     if (!selected) return;
-    onAdd({ ...selected, id: Date.now(), description: desc || selected.description, objective: obj || selected.objective });
+    onAdd({ ...selected, id: Date.now(), description: desc || selected.description, objective: obj || selected.objective, deliveryMoment, materialCategory });
   };
 
   return (
@@ -471,6 +510,29 @@ function MaterialModal({
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Objetivo Pedagógico</label>
                 <input className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                   value={obj} onChange={(e) => setObj(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Momento de entrega</label>
+                  <select
+                    className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                    value={deliveryMoment} onChange={(e) => setDeliveryMoment(e.target.value as Material["deliveryMoment"])}
+                  >
+                    <option value="pre">Pré-sessão</option>
+                    <option value="during">Durante a sessão</option>
+                    <option value="post">Pós-sessão</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Formato</label>
+                  <select
+                    className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                    value={materialCategory} onChange={(e) => setMaterialCategory(e.target.value as Material["materialCategory"])}
+                  >
+                    <option value="digital">Digital / Moodle</option>
+                    <option value="physical">Material físico</option>
+                  </select>
+                </div>
               </div>
             </div>
           )}

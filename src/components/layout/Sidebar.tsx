@@ -7,7 +7,6 @@ import {
   BarChart3,
   Package,
   Users,
-  Settings,
   CheckSquare,
   Bell,
   ChevronLeft,
@@ -41,7 +40,6 @@ const navItems = [
   {
     group: "Catálogos",
     items: [
-      { label: "Pessoas", icon: Users, path: "/people" },
       { label: "Espaços", icon: Building2, path: "/spaces" },
       { label: "Acervos e Recursos", icon: Package, path: "/resources-catalog" },
     ],
@@ -49,8 +47,7 @@ const navItems = [
   {
     group: "Administração",
     items: [
-      { label: "Usuários", icon: Users, path: "/users" },
-      { label: "Configurações", icon: Settings, path: "/settings" },
+      { label: "Usuários", icon: Users, path: "/people" },
     ],
   },
 ];

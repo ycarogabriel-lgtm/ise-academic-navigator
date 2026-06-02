@@ -87,6 +87,7 @@ function PdfPreviewModal({ prog, onClose, onExport }: { prog: ScheduleProgram; o
   const [filterDay, setFilterDay] = useState("all");
   const [showRA, setShowRA] = useState(true);
   const [showLogistic, setShowLogistic] = useState(true);
+  const [audience, setAudience] = useState<"aluno" | "operacoes" | "limpeza" | "docente">("aluno");
 
   const logisticItems = [
     { time: "07:45", end: "08:00", label: "Welcome Coffee", location: "Foyer Principal", type: "coffee" },
@@ -136,7 +137,22 @@ function PdfPreviewModal({ prog, onClose, onExport }: { prog: ScheduleProgram; o
 
         {/* Filters bar */}
         <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-muted/20 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground">Filtros:</span>
+          <span className="text-xs font-medium text-muted-foreground">Template:</span>
+          <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+            {([
+              { key: "aluno", label: "Aluno" },
+              { key: "operacoes", label: "Operações" },
+              { key: "limpeza", label: "Limpeza" },
+              { key: "docente", label: "Docente" },
+            ] as const).map(({ key, label }) => (
+              <button key={key} type="button" onClick={() => setAudience(key)}
+                className={cn("text-xs px-2.5 py-1 rounded-md font-medium transition-all",
+                  audience === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs font-medium text-muted-foreground ml-2">Filtros:</span>
           <select value={filterDay} onChange={e => setFilterDay(e.target.value)}
             className="text-xs border border-input rounded-md px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary">
             <option value="all">Todos os dias</option>
@@ -144,14 +160,21 @@ function PdfPreviewModal({ prog, onClose, onExport }: { prog: ScheduleProgram; o
             <option value="2024-03-22">22/03/2024</option>
             <option value="2024-03-29">29/03/2024</option>
           </select>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-            <input type="checkbox" checked={showLogistic} onChange={e => setShowLogistic(e.target.checked)} className="rounded" />
-            Atividades logísticas
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-            <input type="checkbox" checked={showRA} onChange={e => setShowRA(e.target.checked)} className="rounded" />
-            Exibir RAs
-          </label>
+          {(audience === "operacoes") && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <input type="checkbox" checked={showLogistic} onChange={e => setShowLogistic(e.target.checked)} className="rounded" />
+              Atividades logísticas
+            </label>
+          )}
+          {(audience === "operacoes") && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <input type="checkbox" checked={showRA} onChange={e => setShowRA(e.target.checked)} className="rounded" />
+              Exibir RAs
+            </label>
+          )}
+          {audience === "aluno" && <span className="text-[10px] text-muted-foreground italic">Tema · Docente · Sala · Horário</span>}
+          {audience === "limpeza" && <span className="text-[10px] text-muted-foreground italic">Apenas Horário · Sala · Turno</span>}
+          {audience === "docente" && <span className="text-[10px] text-muted-foreground italic">Sessões do docente selecionado</span>}
         </div>
 
         <div className="flex flex-1 overflow-hidden">

@@ -36,12 +36,14 @@ interface Program {
   status: ProgramStatus;
   description?: string;
   turmas: Turma[];
+  isTemplate?: boolean;
 }
 
 interface Turma {
   id: number; nomeTurma: string; siglaTurma: string;
   programaId: number; diretorPrograma: string;
   nomeFinanceiro?: string; nomeFantasia?: string;
+  nomeFantasiaUso?: string;
   coordenador?: string; diretorAcademico?: string;
   planejamento?: string; producaoMateriais?: string;
   codigoFinanceiro?: string;
@@ -549,6 +551,7 @@ function ProgramModal({
 interface TurmaFormData {
   nomeTurma: string; siglaTurma: string; programaId: number | "";
   diretorPrograma: string; nomeFinanceiro: string; nomeFantasia: string;
+  nomeFantasiaUso: string;
   coordenador: string; diretorAcademico: string; planejamento: string;
   producaoMateriais: string; codigoFinanceiro: string;
   periodoStart?: Date; periodoEnd?: Date; diasPrograma: number | "";
@@ -559,7 +562,8 @@ interface TurmaFormData {
 
 const emptyTurmaForm: TurmaFormData = {
   nomeTurma: "", siglaTurma: "", programaId: "", diretorPrograma: "",
-  nomeFinanceiro: "", nomeFantasia: "", coordenador: "", diretorAcademico: "",
+  nomeFinanceiro: "", nomeFantasia: "", nomeFantasiaUso: "",
+  coordenador: "", diretorAcademico: "",
   planejamento: "", producaoMateriais: "", codigoFinanceiro: "",
   periodoStart: undefined, periodoEnd: undefined, diasPrograma: "",
   numParticipantes: "", estimativaAlunos: "", modalidade: "presencial",
@@ -576,6 +580,7 @@ function TurmaFormFields({
   programs: Program[];
   step: number;
 }) {
+  const [showPersonalizacao, setShowPersonalizacao] = useState(false);
   const selectedProgram = programs.find((p) => p.id === form.programaId);
   const generatedName = selectedProgram
     ? `${selectedProgram.sigla}${selectedProgram.cliente ? " " + selectedProgram.cliente.split(" ")[0] : ""} ${form.anoConclusion || new Date().getFullYear()}`
@@ -646,17 +651,57 @@ function TurmaFormFields({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel optional>Nome financeiro</FieldLabel>
-          <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            {...inp("nomeFinanceiro")} placeholder="Nome para nota fiscal..." />
-        </div>
-        <div>
-          <FieldLabel optional>Nome fantasia</FieldLabel>
-          <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            {...inp("nomeFantasia")} placeholder="Como será divulgado..." />
-        </div>
+      <div>
+        <FieldLabel optional>Nome financeiro</FieldLabel>
+        <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          {...inp("nomeFinanceiro")} placeholder="Nome para nota fiscal..." />
+      </div>
+
+      {/* Personalização — colapsável */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowPersonalizacao((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted/40 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Tag className="w-3.5 h-3.5" />
+            Personalização
+            {form.nomeFantasia && (
+              <span className="bg-primary/10 text-primary border border-primary/20 rounded px-1.5 py-0.5 font-normal text-[10px]">
+                {form.nomeFantasia}
+              </span>
+            )}
+          </span>
+          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showPersonalizacao && "rotate-180")} />
+        </button>
+        {showPersonalizacao && (
+          <div className="px-4 pb-4 pt-2 space-y-3 border-t border-border bg-muted/10">
+            <p className="text-[11px] text-muted-foreground">
+              Nome fantasia é exibido apenas em contextos específicos (sinalização, relatórios, integrações).
+            </p>
+            <div>
+              <FieldLabel optional>Nome fantasia</FieldLabel>
+              <input className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                {...inp("nomeFantasia")} placeholder="Como será divulgado..." />
+            </div>
+            <div>
+              <FieldLabel optional tooltip="Onde esse nome fantasia será utilizado nas integrações">Uso do nome fantasia</FieldLabel>
+              <select
+                className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+                {...inp("nomeFantasiaUso")}
+              >
+                <option value="">Selecione o uso...</option>
+                <option value="sinalizacao_digital">Sinalização digital</option>
+                <option value="relatorio_aluno">Relatório para aluno</option>
+                <option value="moodle">Moodle</option>
+                <option value="certificado">Certificado</option>
+                <option value="comunicacao_externa">Comunicação externa</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -915,7 +960,8 @@ function TurmaEditModal({
   const [form, setForm] = useState<TurmaFormData>({
     nomeTurma: turma.nomeTurma, siglaTurma: turma.siglaTurma, programaId: turma.programaId,
     diretorPrograma: turma.diretorPrograma, nomeFinanceiro: turma.nomeFinanceiro || "",
-    nomeFantasia: turma.nomeFantasia || "", coordenador: turma.coordenador || "",
+    nomeFantasia: turma.nomeFantasia || "", nomeFantasiaUso: "",
+    coordenador: turma.coordenador || "",
     diretorAcademico: turma.diretorAcademico || "", planejamento: turma.planejamento || "",
     producaoMateriais: turma.producaoMateriais || "", codigoFinanceiro: turma.codigoFinanceiro || "",
     periodoStart: turma.periodoStart, periodoEnd: turma.periodoEnd,
@@ -1525,11 +1571,11 @@ function TurmaDetailDrawer({
 
 // ─── Program Card ─────────────────────────────────────────────────────────────
 
-function ProgramCard({ prog, viewMode = "grid", onCardClick, onEdit, onDuplicate, onDelete, onToggle, onNewTurma }: {
+function ProgramCard({ prog, viewMode = "grid", onCardClick, onEdit, onDuplicate, onSaveAsTemplate, onDelete, onToggle, onNewTurma }: {
   prog: Program;
   viewMode?: "grid" | "list";
   onCardClick: () => void;
-  onEdit: () => void; onDuplicate: () => void; onDelete: () => void;
+  onEdit: () => void; onDuplicate: () => void; onSaveAsTemplate: () => void; onDelete: () => void;
   onToggle: () => void; onNewTurma: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1608,7 +1654,11 @@ function ProgramCard({ prog, viewMode = "grid", onCardClick, onEdit, onDuplicate
               </button>
               <button onClick={() => { onDuplicate(); setMenuOpen(false); }}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-muted transition-colors">
-                <Copy className="w-3.5 h-3.5 text-muted-foreground" /> Duplicar programa
+                <Copy className="w-3.5 h-3.5 text-muted-foreground" /> Clonar programa
+              </button>
+              <button onClick={() => { onSaveAsTemplate(); setMenuOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-muted transition-colors">
+                <Sparkles className="w-3.5 h-3.5 text-muted-foreground" /> Salvar como template
               </button>
               <button onClick={() => { onToggle(); setMenuOpen(false); }}
                 className={cn("w-full flex items-center gap-2.5 px-3 py-2.5 text-xs transition-colors hover:bg-muted",
@@ -1885,7 +1935,12 @@ export default function Programs() {
       code: generateCode(prog.sigla + "C"), status: "draft", turmas: [],
     };
     setPrograms([...programs, copy]);
-    toast({ title: "Programa duplicado como Rascunho.", className: "top-center-toast" });
+    toast({ title: "Programa clonado como Rascunho.", className: "top-center-toast" });
+  };
+
+  const handleSaveAsTemplate = (prog: Program) => {
+    setPrograms(programs.map((p) => p.id === prog.id ? { ...p, isTemplate: true } : p));
+    toast({ title: "Salvo como template.", description: `${prog.name} agora pode ser reutilizado como base.`, className: "top-center-toast" });
   };
 
   const handleDelete = () => {
@@ -2038,6 +2093,7 @@ export default function Programs() {
                     onCardClick={() => setSelectedProgram(prog)}
                     onEdit={() => openEditProgram(prog)}
                     onDuplicate={() => handleDuplicate(prog)}
+                    onSaveAsTemplate={() => handleSaveAsTemplate(prog)}
                     onDelete={() => setDeleteProgram(prog)}
                     onToggle={() => handleToggleStatus(prog)}
                     onNewTurma={() => openNewTurma(prog.id)}
@@ -2051,6 +2107,7 @@ export default function Programs() {
                     onCardClick={() => setSelectedProgram(prog)}
                     onEdit={() => openEditProgram(prog)}
                     onDuplicate={() => handleDuplicate(prog)}
+                    onSaveAsTemplate={() => handleSaveAsTemplate(prog)}
                     onDelete={() => setDeleteProgram(prog)}
                     onToggle={() => handleToggleStatus(prog)}
                     onNewTurma={() => openNewTurma(prog.id)}

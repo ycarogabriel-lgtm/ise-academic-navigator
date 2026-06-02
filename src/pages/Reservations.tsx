@@ -22,6 +22,8 @@ interface Reservation {
   createdAt: string;
   justification?: string;
   comments?: string[];
+  blockType?: "free" | "linked";
+  blockReason?: string;
 }
 
 const PROGRAMS_LIST = [
@@ -94,6 +96,7 @@ const statusConfig: Record<ReservationStatus, { label: string; iconClass: string
 
 // ── New Reservation Modal ─────────────────────────────────────────
 interface NewResForm {
+  blockType: "free" | "linked";
   program: string;
   resource: string;
   resourceType: "space" | "professor";
@@ -101,21 +104,24 @@ interface NewResForm {
   timeStart: string;
   timeEnd: string;
   activityType: string;
+  blockReason: string;
 }
 
 function NewReservationModal({ onSave, onClose }: { onSave: (f: NewResForm) => void; onClose: () => void }) {
   const [form, setForm] = useState<NewResForm>({
+    blockType: "linked",
     program: "", resource: "", resourceType: "space", date: "",
-    timeStart: "08:00", timeEnd: "12:00", activityType: "",
+    timeStart: "08:00", timeEnd: "12:00", activityType: "", blockReason: "",
   });
   const [errors, setErrors] = useState<Partial<NewResForm>>({});
 
   const validate = () => {
     const e: Partial<NewResForm> = {};
-    if (!form.program) e.program = "Campo obrigatório";
+    if (form.blockType === "linked" && !form.program) e.program = "Campo obrigatório";
     if (!form.resource) e.resource = "Campo obrigatório";
     if (!form.date) e.date = "Campo obrigatório";
     if (!form.timeStart) e.timeStart = "Campo obrigatório";
+    if (form.blockType === "free" && !form.blockReason.trim()) e.blockReason = "Informe o motivo do bloqueio";
     return e;
   };
 
@@ -132,27 +138,69 @@ function NewReservationModal({ onSave, onClose }: { onSave: (f: NewResForm) => v
       <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="font-display font-bold text-lg text-foreground">Nova Pré-Reserva</h2>
-            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Ghost className="w-3 h-3" />
-              Criada como Pré-Reservada (aguardando aprovação)
-            </p>
+            <h2 className="font-display font-bold text-lg text-foreground">Novo Bloqueio / Pré-Reserva</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Escolha o tipo abaixo</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"><X className="w-4 h-4" /></button>
         </div>
         <div className="space-y-4">
-          {/* Programa (select) */}
+          {/* Tipo de bloqueio */}
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Programa *</label>
-            <select
-              className={cn("w-full px-3 py-2 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground", errors.program ? "border-destructive" : "border-input")}
-              value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })}
-            >
-              <option value="">Selecione o programa...</option>
-              {PROGRAMS_LIST.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            {errors.program && <p className="text-xs text-destructive mt-1">{errors.program}</p>}
+            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Tipo de bloqueio</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button"
+                onClick={() => setForm({ ...form, blockType: "linked", blockReason: "" })}
+                className={cn("flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all",
+                  form.blockType === "linked" ? "bg-primary/5 border-primary text-primary" : "bg-background border-border text-muted-foreground hover:border-primary/40")}>
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Ghost className="w-3.5 h-3.5" />Pré-Reserva
+                </span>
+                <span className="text-[10px] leading-tight">
+                  Vinculada a uma turma; tombada no planejamento ao confirmar contrato
+                </span>
+              </button>
+              <button type="button"
+                onClick={() => setForm({ ...form, blockType: "free", program: "" })}
+                className={cn("flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all",
+                  form.blockType === "free" ? "bg-warning/5 border-warning text-warning" : "bg-background border-border text-muted-foreground hover:border-warning/40")}>
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <AlertTriangle className="w-3.5 h-3.5" />Bloqueio Livre
+                </span>
+                <span className="text-[10px] leading-tight">
+                  Indisponibilidade sem vínculo a turma (férias, manutenção etc.)
+                </span>
+              </button>
+            </div>
           </div>
+
+          {/* Motivo (somente Bloqueio Livre) */}
+          {form.blockType === "free" && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Motivo do bloqueio *</label>
+              <input
+                className={cn("w-full px-3 py-2 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30", errors.blockReason ? "border-destructive" : "border-input")}
+                value={form.blockReason}
+                onChange={(e) => setForm({ ...form, blockReason: e.target.value })}
+                placeholder="Ex: Férias do professor, Manutenção da sala..."
+              />
+              {errors.blockReason && <p className="text-xs text-destructive mt-1">{errors.blockReason}</p>}
+            </div>
+          )}
+
+          {/* Programa — somente para pré-reserva vinculada */}
+          {form.blockType === "linked" && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Programa / Turma *</label>
+              <select
+                className={cn("w-full px-3 py-2 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground", errors.program ? "border-destructive" : "border-input")}
+                value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })}
+              >
+                <option value="">Selecione o programa...</option>
+                {PROGRAMS_LIST.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              {errors.program && <p className="text-xs text-destructive mt-1">{errors.program}</p>}
+            </div>
+          )}
 
           {/* Tipo de recurso */}
           <div>
@@ -455,13 +503,19 @@ export default function Reservations() {
     const newRes: Reservation = {
       id: Date.now(), program: form.program, resource: form.resource, resourceType: form.resourceType,
       date: form.date, timeStart: form.timeStart, timeEnd: form.timeEnd,
-      requestedBy: "Dir. Usuário Atual", status: "pending", createdAt: new Date().toLocaleDateString("pt-BR"), comments: [],
+      requestedBy: "Dir. Usuário Atual",
+      status: form.blockType === "free" ? "approved" : "pending",
+      createdAt: new Date().toLocaleDateString("pt-BR"), comments: [],
+      blockType: form.blockType,
+      blockReason: form.blockType === "free" ? form.blockReason : undefined,
     };
     setReservations([newRes, ...reservations]);
     setShowNew(false);
     toast({
-      title: "👻 Pré-Reserva criada.",
-      description: "Notificação enviada ao time de planejamento.",
+      title: form.blockType === "free" ? "🚫 Bloqueio registrado." : "👻 Pré-Reserva criada.",
+      description: form.blockType === "free"
+        ? "Recurso bloqueado na agenda."
+        : "Notificação enviada ao time de planejamento.",
       className: "top-center-toast bg-success text-success-foreground border-success",
     });
   };
