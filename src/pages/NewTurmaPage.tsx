@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -157,9 +159,9 @@ function DatePicker({ value, onChange, placeholder, minDate }: {
 
 function StepIndicator({ step, total, labels }: { step: number; total: number; labels: string[] }) {
   return (
-    <div className="flex items-center gap-0">
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className="flex items-center flex-1 last:flex-none">
+    <div className="flex items-center">
+      {Array.from({ length: total }, (_, i) => [
+        <div key={`s${i}`} className="flex items-center gap-2 shrink-0">
           <div className={cn(
             "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all shrink-0",
             i < step ? "bg-primary border-primary text-primary-foreground" :
@@ -168,14 +170,14 @@ function StepIndicator({ step, total, labels }: { step: number; total: number; l
           )}>
             {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
           </div>
-          <div className="ml-2 mr-3 flex-1 min-w-0">
-            <p className={cn("text-xs font-medium truncate", i === step ? "text-foreground" : "text-muted-foreground")}>
-              {labels[i]}
-            </p>
-          </div>
-          {i < total - 1 && <div className={cn("h-0.5 w-6 shrink-0", i < step ? "bg-primary" : "bg-border")} />}
-        </div>
-      ))}
+          <p className={cn("text-xs font-medium whitespace-nowrap", i === step ? "text-foreground" : "text-muted-foreground")}>
+            {labels[i]}
+          </p>
+        </div>,
+        i < total - 1 && (
+          <div key={`c${i}`} className={cn("flex-1 h-0.5 mx-2 min-w-[12px]", i < step ? "bg-primary" : "bg-border")} />
+        ),
+      ]).flat()}
     </div>
   );
 }
@@ -1043,15 +1045,88 @@ const MOCK_ALLOC_SESSOES: AllocSessao[] = [
   { id: "a6", nome: "Posicionamento de Marca", slot: "M1", modulo: "Módulo 2", duracao: 90 },
 ];
 
+// ─── DnD sub-components ───────────────────────────────────────────────────────
+function DraggableSessionCard({ sessao, academic }: { sessao: AllocSessao; academic: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: sessao.id });
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes}
+      className={cn(
+        "flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 hover:shadow-sm transition-all cursor-grab touch-none",
+        isDragging && "opacity-40"
+      )}>
+      <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
+      {academic ? (
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-foreground truncate">{sessao.nome}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs font-mono text-muted-foreground">{sessao.slot}</span>
+            {sessao.modulo && <span className="text-xs text-muted-foreground/60 truncate">{sessao.modulo}</span>}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs font-medium text-foreground truncate flex-1">{sessao.nome}</p>
+      )}
+    </div>
+  );
+}
+
+function DraggablePlacedSession({ sessao, onRemove, isBeingDragged }: {
+  sessao: AllocSessao; onRemove: () => void; isBeingDragged: boolean;
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: sessao.id });
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div ref={setNodeRef} {...listeners} {...attributes}
+          className={cn(
+            "h-10 rounded-lg bg-primary/10 border border-primary/20 px-1.5 flex items-center justify-between group cursor-grab touch-none hover:bg-primary/15 transition-colors w-full overflow-hidden",
+            isBeingDragged && "opacity-40"
+          )}>
+          <span className="text-xs text-primary font-medium truncate flex-1 min-w-0">{sessao.nome}</span>
+          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="opacity-0 group-hover:opacity-100 shrink-0 ml-1 text-muted-foreground hover:text-destructive transition-all">
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <p>{sessao.nome}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function DroppableCell({ dayIdx, timeIdx, children, isOver, isEmpty }: {
+  dayIdx: number; timeIdx: number; children?: React.ReactNode; isOver: boolean; isEmpty: boolean;
+}) {
+  const { setNodeRef } = useDroppable({ id: `cell-${dayIdx}-${timeIdx}`, data: { dayIdx, timeIdx } });
+  return (
+    <div ref={setNodeRef}
+      className={cn(
+        "h-10 rounded-lg transition-colors overflow-hidden",
+        isEmpty
+          ? isOver ? "bg-primary/10 border border-dashed border-primary/50" : "border border-dashed border-border hover:bg-primary/5 hover:border-primary/30"
+          : isOver ? "ring-2 ring-primary/40" : ""
+      )}>
+      {children}
+    </div>
+  );
+}
+
 function StepDiasAula() {
   const [viewDir, setViewDir] = useState<"horizontal" | "vertical">("horizontal");
   const [sessoes, setSessoes] = useState<AllocSessao[]>(MOCK_ALLOC_SESSOES);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const unallocated = sessoes.filter((s) => !s.allocated);
   const academic = unallocated.filter((_, i) => i % 2 === 0);
   const nonAcademic = unallocated.filter((_, i) => i % 2 !== 0);
   const allocatedCount = sessoes.filter((s) => s.allocated).length;
   const allocPct = sessoes.length > 0 ? Math.round((allocatedCount / sessoes.length) * 100) : 0;
+  const activeSessao = activeId ? sessoes.find((s) => s.id === activeId) ?? null : null;
 
   const placeSession = (sessaoId: string, dayIdx: number, timeIdx: number) => {
     setSessoes((prev) => prev.map((s) =>
@@ -1066,104 +1141,127 @@ function StepDiasAula() {
   const getSessionAt = (dayIdx: number, timeIdx: number) =>
     sessoes.find((s) => s.allocated && s.dayIdx === dayIdx && s.timeIdx === timeIdx);
 
-  return (
-    <div className="h-full min-h-[600px] flex flex-col gap-4">
-      {/* Controls */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-medium">Visualização:</span>
-          <div className="flex gap-1 p-1 bg-muted rounded-lg">
-            {([{ key: "horizontal", label: "Horizontal" }, { key: "vertical", label: "Vertical" }] as const).map((v) => (
-              <button key={v.key} onClick={() => setViewDir(v.key)}
-                className={cn("text-xs px-2.5 py-1 rounded-md transition-all font-medium",
-                  viewDir === v.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}>{v.label}</button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
-            <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : "bg-primary")}
-              style={{ width: `${allocPct}%` }} />
-          </div>
-          <span className="text-xs text-muted-foreground">{allocatedCount}/{sessoes.length} alocadas</span>
-        </div>
-      </div>
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    setOverId(null);
+    if (!event.over) return;
+    const { dayIdx, timeIdx } = event.over.data.current as { dayIdx: number; timeIdx: number };
+    const draggedId = String(event.active.id);
+    // Reject if target is occupied by a *different* session
+    const occupant = getSessionAt(dayIdx, timeIdx);
+    if (occupant && occupant.id !== draggedId) return;
+    setSessoes((prev) => prev.map((s) =>
+      s.id === draggedId ? { ...s, allocated: true, dayIdx, timeIdx } : s
+    ));
+  };
 
-      <div className={cn("flex gap-4 flex-1", viewDir === "vertical" && "flex-col")}>
-        {/* Left panel */}
-        <div className={cn("shrink-0 space-y-4", viewDir === "horizontal" ? "w-52" : "w-full")}>
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Acadêmicas</p>
-            <div className="space-y-1.5">
-              {academic.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">Todas alocadas</p>
-              ) : academic.map((s) => (
-                <div key={s.id}
-                  className="flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 hover:shadow-sm transition-all cursor-grab">
-                  <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{s.nome}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-xs font-mono text-muted-foreground">{s.slot}</span>
-                      {s.modulo && <span className="text-xs text-muted-foreground/60 truncate">{s.modulo}</span>}
-                    </div>
-                  </div>
+  return (
+    <TooltipProvider delayDuration={400}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart}
+      onDragOver={(e) => setOverId(e.over ? String(e.over.id) : null)}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => { setActiveId(null); setOverId(null); }}>
+      <div className="h-full min-h-[600px] flex flex-col gap-4">
+        {/* Controls */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-medium">Visualização:</span>
+            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+              {([{ key: "horizontal", label: "Horizontal" }, { key: "vertical", label: "Vertical" }] as const).map((v) => (
+                <button key={v.key} onClick={() => setViewDir(v.key)}
+                  className={cn("text-xs px-2.5 py-1 rounded-md transition-all font-medium",
+                    viewDir === v.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}>{v.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+              <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : "bg-primary")}
+                style={{ width: `${allocPct}%` }} />
+            </div>
+            <span className="text-xs text-muted-foreground">{allocatedCount}/{sessoes.length} alocadas</span>
+          </div>
+        </div>
+
+        <div className={cn("flex gap-4 flex-1", viewDir === "vertical" && "flex-col")}>
+          {/* Left panel */}
+          <div className={cn("shrink-0 space-y-4", viewDir === "horizontal" ? "w-52" : "w-full")}>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Acadêmicas</p>
+              <div className="space-y-1.5">
+                {academic.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">Todas alocadas</p>
+                ) : academic.map((s) => (
+                  <DraggableSessionCard key={s.id} sessao={s} academic />
+                ))}
+              </div>
+            </div>
+            {nonAcademic.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Não-acadêmicas</p>
+                <div className="space-y-1.5">
+                  {nonAcademic.map((s) => (
+                    <DraggableSessionCard key={s.id} sessao={s} academic={false} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right panel */}
+          <div className="flex-1 overflow-auto">
+            <div className="min-w-[480px]">
+              <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
+                <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
+                {WEEK_DAYS.map((d) => (
+                  <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
+                ))}
+              </div>
+              {TIME_ROWS.map((time, tIdx) => (
+                <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)`, gridAutoRows: "40px" }}>
+                  <div className="h-10 flex items-center justify-end text-xs text-muted-foreground pr-1.5">{time}</div>
+                  {WEEK_DAYS.map((_, dIdx) => {
+                    const placed = getSessionAt(dIdx, tIdx);
+                    const cellId = `cell-${dIdx}-${tIdx}`;
+                    return (
+                      <DroppableCell key={dIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
+                        {placed && (
+                          <DraggablePlacedSession
+                            sessao={placed}
+                            isBeingDragged={activeId === placed.id}
+                            onRemove={() => removeAllocation(placed.id)}
+                          />
+                        )}
+                      </DroppableCell>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </div>
-          {nonAcademic.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Não-acadêmicas</p>
-              <div className="space-y-1.5">
-                {nonAcademic.map((s) => (
-                  <div key={s.id}
-                    className="flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 transition-all cursor-grab">
-                    <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
-                    <p className="text-xs font-medium text-foreground truncate flex-1">{s.nome}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right panel */}
-        <div className="flex-1 overflow-auto">
-          <div className="min-w-[480px]">
-            <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
-              <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
-              {WEEK_DAYS.map((d) => (
-                <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
-              ))}
-            </div>
-            {TIME_ROWS.map((time, tIdx) => (
-              <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
-                <div className="text-xs text-muted-foreground text-right pr-1.5 py-2 leading-tight">{time}</div>
-                {WEEK_DAYS.map((_, dIdx) => {
-                  const placed = getSessionAt(dIdx, tIdx);
-                  return placed ? (
-                    <div key={dIdx}
-                      className="h-10 rounded-lg bg-primary/10 border border-primary/20 px-1.5 flex items-center justify-between group cursor-pointer hover:bg-primary/15 transition-colors">
-                      <span className="text-xs text-primary font-medium truncate flex-1">{placed.nome}</span>
-                      <button onClick={(e) => { e.stopPropagation(); removeAllocation(placed.id); }}
-                        className="opacity-0 group-hover:opacity-100 shrink-0 ml-1 text-muted-foreground hover:text-destructive transition-all">
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div key={dIdx}
-                      className="h-10 border border-dashed border-border rounded-lg hover:bg-primary/5 hover:border-primary/30 transition-colors cursor-pointer"
-                      onClick={() => { const first = unallocated[0]; if (first) placeSession(first.id, dIdx, tIdx); }} />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
         </div>
       </div>
-    </div>
+
+      <DragOverlay>
+        {activeSessao && (
+          <div className="flex items-center gap-2 px-2.5 py-2.5 border border-primary rounded-xl bg-card shadow-lg opacity-90 w-48 cursor-grabbing">
+            <GripVertical className="w-3 h-3 text-muted-foreground shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">{activeSessao.nome}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-xs font-mono text-muted-foreground">{activeSessao.slot}</span>
+                {activeSessao.modulo && <span className="text-xs text-muted-foreground/60 truncate">{activeSessao.modulo}</span>}
+              </div>
+            </div>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+    </TooltipProvider>
   );
 }
 

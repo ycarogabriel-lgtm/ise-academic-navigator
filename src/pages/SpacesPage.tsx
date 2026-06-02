@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Plus, Search, MoreHorizontal, Building2, X, Pencil, EyeOff, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/ui/stat-card";
 import { useState } from "react";
 
 type SpaceStatus = "free" | "occupied" | "reserved" | "inactive";
@@ -174,17 +175,10 @@ export default function SpacesPage() {
       <div className="p-6 space-y-5 animate-fade-in" onClick={() => setOpenMenu(null)}>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Total", value: spaces.length, class: "bg-primary/5 text-primary border-primary/15" },
-            { label: "Disponíveis", value: spaces.filter((s) => s.status === "free").length, class: "bg-success/5 text-success border-success/15" },
-            { label: "Ocupados", value: spaces.filter((s) => s.status === "occupied").length, class: "bg-destructive/5 text-destructive border-destructive/15" },
-            { label: "Reservados", value: spaces.filter((s) => s.status === "reserved").length, class: "bg-warning/5 text-warning border-warning/15" },
-          ].map((stat) => (
-            <div key={stat.label} className={cn("rounded-xl border px-4 py-3 text-center", stat.class)}>
-              <p className="text-xs font-semibold">{stat.label}</p>
-              <p className="text-2xl font-display font-bold mt-0.5">{stat.value}</p>
-            </div>
-          ))}
+          <StatCard label="Total"      value={spaces.length} />
+          <StatCard label="Disponíveis" value={spaces.filter((s) => s.status === "free").length} />
+          <StatCard label="Ocupados"   value={spaces.filter((s) => s.status === "occupied").length} />
+          <StatCard label="Reservados" value={spaces.filter((s) => s.status === "reserved").length} />
         </div>
 
         {/* Toolbar */}

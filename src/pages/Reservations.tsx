@@ -84,12 +84,12 @@ const initialReservations: Reservation[] = [
   },
 ];
 
-const statusConfig: Record<ReservationStatus, { label: string; class: string; icon: React.ElementType }> = {
-  pending: { label: "Aguardando", class: "bg-warning/10 text-warning border-warning/20", icon: Clock },
-  approved: { label: "Aprovado", class: "bg-success/10 text-success border-success/20", icon: CheckCircle2 },
-  conflict: { label: "Conflito", class: "bg-destructive/10 text-destructive border-destructive/20", icon: AlertTriangle },
-  rejected: { label: "Recusado", class: "bg-muted text-muted-foreground border-border", icon: XCircle },
-  cancelled: { label: "Cancelado", class: "bg-muted text-muted-foreground border-border opacity-70", icon: XCircle },
+const statusConfig: Record<ReservationStatus, { label: string; iconClass: string; icon: React.ElementType }> = {
+  pending:   { label: "Aguardando", iconClass: "text-warning",          icon: Clock },
+  approved:  { label: "Aprovado",   iconClass: "text-success",          icon: CheckCircle2 },
+  conflict:  { label: "Conflito",   iconClass: "text-destructive",      icon: AlertTriangle },
+  rejected:  { label: "Recusado",   iconClass: "text-muted-foreground", icon: XCircle },
+  cancelled: { label: "Cancelado",  iconClass: "text-muted-foreground", icon: XCircle },
 };
 
 // ── New Reservation Modal ─────────────────────────────────────────
@@ -259,9 +259,9 @@ function ReviewModal({
   const titles = { approve: "Aprovar Reserva", reject: "Recusar Solicitação", cancel: "Cancelar Pré-Reserva" };
   const confirmLabels = { approve: "Confirmar Aprovação", reject: "Recusar", cancel: "Cancelar Solicitação" };
   const confirmVariants = {
-    approve: "bg-success text-success-foreground hover:bg-success/90",
-    reject: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-    cancel: "bg-muted text-muted-foreground border border-border hover:bg-muted/80",
+    approve: "bg-primary text-primary-foreground hover:bg-primary/90",
+    reject:  "border border-border text-muted-foreground hover:bg-muted",
+    cancel:  "border border-border text-muted-foreground hover:bg-muted",
   };
 
   return (
@@ -380,8 +380,8 @@ function DetailDrawer({ reservation, onClose, onApprove, onReject, onCancel }: {
           </div>
 
           {reservation.justification && (
-            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
-              <p className="text-xs font-semibold text-destructive mb-1">Justificativa de recusa</p>
+            <div className="bg-muted/40 border border-border rounded-lg p-3">
+              <p className="text-xs font-semibold text-foreground mb-1">Justificativa de recusa</p>
               <p className="text-xs text-muted-foreground">{reservation.justification}</p>
             </div>
           )}
@@ -421,11 +421,11 @@ function DetailDrawer({ reservation, onClose, onApprove, onReject, onCancel }: {
         {/* Actions */}
         {(reservation.status === "pending" || reservation.status === "conflict") && (
           <div className="p-5 border-t border-border space-y-2">
-            <button onClick={onApprove} className="w-full py-2.5 text-sm font-medium bg-success text-success-foreground rounded-lg hover:bg-success/90 transition-colors flex items-center justify-center gap-2">
+            <button onClick={onApprove} className="w-full py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> Aprovar Reserva
             </button>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={onReject} className="py-2 text-sm font-medium bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors">Recusar</button>
+              <button onClick={onReject} className="py-2 text-sm font-medium border border-border text-muted-foreground rounded-lg hover:bg-muted transition-colors">Recusar</button>
               <button onClick={onCancel} className="py-2 text-sm font-medium border border-border text-muted-foreground rounded-lg hover:bg-muted transition-colors">Cancelar</button>
             </div>
           </div>
@@ -495,7 +495,7 @@ export default function Reservations() {
     <AppLayout pageTitle="Pré-Reservas" pageSubtitle="Solicitações e aprovação de recursos">
       <div className="p-6 space-y-5 animate-fade-in">
         {/* Mapa de calor link */}
-        <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-3">
           <MapPin className="w-4 h-4 text-primary shrink-0" />
           <p className="text-xs text-foreground flex-1">Verifique a disponibilidade no <strong>Mapa de Calor</strong> antes de criar uma pré-reserva.</p>
           <a href="/occupancy" className="text-xs text-primary font-medium hover:underline whitespace-nowrap">Ver Mapa de Calor →</a>
@@ -504,27 +504,13 @@ export default function Reservations() {
         {/* Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Pendentes", count: reservations.filter((r) => r.status === "pending").length, color: "warning", icon: Clock },
-            { label: "Aprovadas", count: reservations.filter((r) => r.status === "approved").length, color: "success", icon: CheckCircle2 },
-            { label: "Conflitos", count: reservations.filter((r) => r.status === "conflict").length, color: "destructive", icon: AlertTriangle },
-            { label: "Recusadas", count: reservations.filter((r) => r.status === "rejected").length, color: "muted", icon: XCircle },
+            { label: "Pendentes", count: reservations.filter((r) => r.status === "pending").length, iconClass: "text-warning",          icon: Clock },
+            { label: "Aprovadas", count: reservations.filter((r) => r.status === "approved").length, iconClass: "text-success",          icon: CheckCircle2 },
+            { label: "Conflitos", count: reservations.filter((r) => r.status === "conflict").length, iconClass: "text-destructive",      icon: AlertTriangle },
+            { label: "Recusadas", count: reservations.filter((r) => r.status === "rejected").length, iconClass: "text-muted-foreground", icon: XCircle },
           ].map((s) => (
-            <div key={s.label} className={cn(
-              "rounded-xl border p-4 flex items-center gap-3",
-              s.color === "warning" && "bg-warning/5 border-warning/20",
-              s.color === "success" && "bg-success/5 border-success/20",
-              s.color === "destructive" && "bg-destructive/5 border-destructive/20",
-              s.color === "muted" && "bg-muted/50 border-border",
-            )}>
-              <div className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center",
-                s.color === "warning" && "bg-warning/15 text-warning",
-                s.color === "success" && "bg-success/15 text-success",
-                s.color === "destructive" && "bg-destructive/15 text-destructive",
-                s.color === "muted" && "bg-muted text-muted-foreground",
-              )}>
-                <s.icon className="w-4 h-4" />
-              </div>
+            <div key={s.label} className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+              <s.icon className={cn("w-5 h-5 shrink-0", s.iconClass)} />
               <div>
                 <p className="font-display font-bold text-xl text-foreground">{s.count}</p>
                 <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -618,8 +604,8 @@ export default function Reservations() {
                     </td>
                     <td className="px-3 py-3 text-xs text-muted-foreground hidden xl:table-cell">{res.requestedBy}</td>
                     <td className="px-3 py-3">
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium flex items-center gap-1 w-fit", s.class)}>
-                        <s.icon className="w-2.5 h-2.5" />
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/40 font-medium flex items-center gap-1 w-fit text-foreground">
+                        <s.icon className={cn("w-2.5 h-2.5", s.iconClass)} />
                         {s.label}
                       </span>
                     </td>
@@ -629,13 +615,13 @@ export default function Reservations() {
                           <>
                             <button
                               onClick={() => { setSelected(res); setReviewMode("approve"); }}
-                              className="text-xs px-2 py-1 bg-success/10 text-success rounded-md hover:bg-success/20 transition-colors font-medium"
+                              className="text-xs px-2 py-1 bg-muted text-foreground rounded-md hover:bg-muted/60 transition-colors font-medium"
                             >
                               Aprovar
                             </button>
                             <button
                               onClick={() => { setSelected(res); setReviewMode("reject"); }}
-                              className="text-xs px-2 py-1 bg-destructive/10 text-destructive rounded-md hover:bg-destructive/20 transition-colors font-medium"
+                              className="text-xs px-2 py-1 bg-muted text-foreground rounded-md hover:bg-muted/60 transition-colors font-medium"
                             >
                               Recusar
                             </button>

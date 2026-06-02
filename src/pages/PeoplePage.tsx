@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Plus, Search, MoreHorizontal, Users, X, Pencil, UserX, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/ui/stat-card";
 import { useState } from "react";
 
 type PersonStatus = "active" | "inactive";
@@ -145,17 +146,10 @@ export default function PeoplePage() {
       <div className="p-6 space-y-5 animate-fade-in" onClick={() => setOpenMenu(null)}>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Total", value: people.length, class: "bg-primary/5 text-primary border-primary/15" },
-            { label: "Ativos", value: people.filter((p) => p.status === "active").length, class: "bg-success/5 text-success border-success/15" },
-            { label: "Inativos", value: people.filter((p) => p.status === "inactive").length, class: "bg-muted text-muted-foreground border-border" },
-            { label: "Professores", value: people.filter((p) => p.role.toLowerCase().includes("professor")).length, class: "bg-warning/5 text-warning border-warning/15" },
-          ].map((stat) => (
-            <div key={stat.label} className={cn("rounded-xl border px-4 py-3 text-center", stat.class)}>
-              <p className="text-xs font-semibold">{stat.label}</p>
-              <p className="text-2xl font-display font-bold mt-0.5">{stat.value}</p>
-            </div>
-          ))}
+          <StatCard label="Total"       value={people.length} />
+          <StatCard label="Ativos"      value={people.filter((p) => p.status === "active").length} />
+          <StatCard label="Inativos"    value={people.filter((p) => p.status === "inactive").length} />
+          <StatCard label="Professores" value={people.filter((p) => p.role.toLowerCase().includes("professor")).length} />
         </div>
 
         {/* Toolbar */}

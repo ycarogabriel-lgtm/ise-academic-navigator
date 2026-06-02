@@ -1192,13 +1192,16 @@ export default function Schedule() {
 
             <div className="grid grid-cols-3 gap-4">
               {[
-                { label: "Em Revisão", count: counts.review, color: "text-warning", bg: "bg-warning/10 border-warning/20" },
-                { label: "Publicados", count: counts.approved, color: "text-success", bg: "bg-success/10 border-success/20" },
-                { label: "Rascunho", count: counts.draft, color: "text-muted-foreground", bg: "bg-muted/50 border-border" },
+                { label: "Em Revisão", count: counts.review,   iconClass: "text-warning",          icon: Clock },
+                { label: "Publicados", count: counts.approved, iconClass: "text-success",          icon: CheckCircle2 },
+                { label: "Rascunho",   count: counts.draft,    iconClass: "text-muted-foreground", icon: FileText },
               ].map((stat) => (
-                <div key={stat.label} className={cn("rounded-xl border px-5 py-4", stat.bg)}>
-                  <p className={cn("text-2xl font-display font-bold", stat.color)}>{stat.count}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+                <div key={stat.label} className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+                  <stat.icon className={cn("w-5 h-5 shrink-0", stat.iconClass)} />
+                  <div>
+                    <p className="text-2xl font-display font-bold text-foreground">{stat.count}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+                  </div>
                 </div>
               ))}
             </div>

@@ -1983,7 +1983,7 @@ export default function Programs() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input type="text" placeholder="Buscar por nome, turma, cliente..." value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-56" />
+                  className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-[280px]" />
               </div>
               <button onClick={() => openNewTurma()} className="border border-border text-foreground px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-muted transition-colors">
                 <Layers className="w-4 h-4" /> Nova Turma
