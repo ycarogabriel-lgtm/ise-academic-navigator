@@ -25,6 +25,18 @@ type LocalType = "campus_ise" | "externo";
 interface Person { id: string; name: string; role: string }
 interface Program { id: number; name: string; sigla: string; cliente?: string; status: string }
 
+type GradeModel = "aberto" | "customizado";
+type BlockType = "sessao" | "coffee" | "almoco" | "pausa";
+interface DayBlock {
+  id: string;
+  type: BlockType;
+  label: string;
+  startTime: string;
+  endTime: string;
+  professor?: string;
+  conteudo?: string;
+}
+
 interface TurmaFormData {
   nomeTurma: string; siglaTurma: string; programaId: number | "";
   diretorPrograma: string; nomeFinanceiro: string; nomeFantasia: string;
@@ -37,6 +49,8 @@ interface TurmaFormData {
   numParticipantes: number | ""; estimativaAlunos: number | "";
   modalidade: ModalityType; anoInicio: string; anoConclusion: string;
   local: LocalType; tipoPrograma: ProgramType;
+  gradeModel: GradeModel;
+  customDayBlocks: Record<number, DayBlock[]>;
 }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -85,7 +99,7 @@ const AVAILABLE_LANGUAGES = [
   { code: "ru", label: "Russo" },
   { code: "pt-pt", label: "Português (Portugal)" },
 ];
-const STEPS = ["Identificação", "Responsáveis", "Estrutura Acadêmica", "Grade", "Detalhes das sessões", "Dias de aula"];
+const STEPS = ["Identificação", "Responsáveis", "Informações da Turma", "Grade", "Detalhes das sessões", "Dias de aula"];
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 function FieldLabel({ children, required, optional, tooltip }: {
@@ -405,64 +419,95 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
   errors: Partial<Record<keyof TurmaFormData, string>>;
   setErrors: React.Dispatch<React.SetStateAction<Partial<Record<keyof TurmaFormData, string>>>>;
 }) {
+  const [extras, setExtras] = useState<{ id: string; label: string; value: string }[]>([]);
+
+  const addExtra = () => {
+    setExtras((prev) => [...prev, { id: `extra-${Date.now()}`, label: "", value: "" }]);
+  };
+  const removeExtra = (id: string) => setExtras((prev) => prev.filter((e) => e.id !== id));
+  const updateExtra = (id: string, field: "label" | "value", val: string) =>
+    setExtras((prev) => prev.map((e) => e.id === id ? { ...e, [field]: val } : e));
+
   return (
     <div className="space-y-5">
+      {/* Row 1: Diretor da Turma (required) + Diretor acadêmico */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <FieldLabel required>Diretor do programa</FieldLabel>
-          <PeopleAutocomplete value={form.diretorPrograma}
-            onChange={(v) => { setForm((f) => ({ ...f, diretorPrograma: v })); setErrors((er) => ({ ...er, diretorPrograma: undefined })); }}
+          <FieldLabel required>Diretor(a) da turma</FieldLabel>
+          <PeopleAutocomplete value={form.diretorTurma ?? ""}
+            onChange={(v) => { setForm((f) => ({ ...f, diretorTurma: v })); setErrors((er) => ({ ...er, diretorTurma: undefined })); }}
             placeholder="Buscar diretor..." />
-          {errors.diretorPrograma && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.diretorPrograma}</p>}
+          {errors.diretorTurma && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.diretorTurma}</p>}
         </div>
         <div>
-          <FieldLabel optional>Diretor acadêmico (DA)</FieldLabel>
+          <FieldLabel optional>Diretor(a) acadêmico</FieldLabel>
           <PeopleAutocomplete value={form.diretorAcademico}
             onChange={(v) => setForm((f) => ({ ...f, diretorAcademico: v }))}
-            placeholder="Responsável pela grade..." />
+            placeholder="Buscar diretor..." />
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FieldLabel optional>Coordenador Acadêmico</FieldLabel>
-          <PeopleAutocomplete value={form.coordenador}
-            onChange={(v) => setForm((f) => ({ ...f, coordenador: v }))}
-            placeholder="Coordenador acadêmico..." />
-        </div>
-        <div>
-          <FieldLabel optional>Planejamento (DP)</FieldLabel>
-          <PeopleAutocomplete value={form.planejamento}
-            onChange={(v) => setForm((f) => ({ ...f, planejamento: v }))}
-            placeholder="Diretor de Planejamento..." />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
       </div>
 
-      <div className="border-t border-border pt-5">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Coordenação da turma</p>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <FieldLabel optional>Diretor da Turma</FieldLabel>
-            <PeopleAutocomplete value={form.diretorTurma ?? ""}
-              onChange={(v) => setForm((f) => ({ ...f, diretorTurma: v }))}
-              placeholder="Buscar diretor da turma..." />
-          </div>
-          <div>
-            <FieldLabel optional>Coordenador da Turma</FieldLabel>
-            <PeopleAutocomplete value={form.coordenadorTurma ?? ""}
-              onChange={(v) => setForm((f) => ({ ...f, coordenadorTurma: v }))}
-              placeholder="Buscar coordenador da turma..." />
-          </div>
+      {/* Row 2: Coordenador da Turma + Responsável por materiais */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <FieldLabel optional>Coordenador(a) da turma</FieldLabel>
+          <PeopleAutocomplete value={form.coordenadorTurma ?? ""}
+            onChange={(v) => setForm((f) => ({ ...f, coordenadorTurma: v }))}
+            placeholder="Buscar coordenador..." />
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div>
-            <FieldLabel optional>Responsável por Materiais</FieldLabel>
-            <PeopleAutocomplete value={form.responsavelMateriais ?? ""}
-              onChange={(v) => setForm((f) => ({ ...f, responsavelMateriais: v }))}
-              placeholder="Buscar responsável..." />
-          </div>
+        <div>
+          <FieldLabel optional>Responsável por materiais</FieldLabel>
+          <PeopleAutocomplete value={form.responsavelMateriais ?? ""}
+            onChange={(v) => setForm((f) => ({ ...f, responsavelMateriais: v }))}
+            placeholder="Buscar responsável..." />
         </div>
+      </div>
+
+      {/* Row 3: Coordenador(a) acadêmico — full width */}
+      <div>
+        <FieldLabel optional>Coordenador(a) acadêmico</FieldLabel>
+        <PeopleAutocomplete value={form.coordenadorAcademico ?? ""}
+          onChange={(v) => setForm((f) => ({ ...f, coordenadorAcademico: v }))}
+          placeholder="Buscar coordenador(a)" />
+      </div>
+
+      {/* Outros responsáveis */}
+      <div>
+        <p className="text-sm font-medium text-foreground mb-2">Outros responsáveis</p>
+        <div className="space-y-3">
+          {extras.map((extra) => (
+            <div key={extra.id} className="flex gap-2 items-start">
+              <div className="w-40 shrink-0">
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+                  placeholder="Papel / função"
+                  value={extra.label}
+                  onChange={(e) => updateExtra(extra.id, "label", e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <PeopleAutocomplete
+                  value={extra.value}
+                  onChange={(v) => updateExtra(extra.id, "value", v)}
+                  placeholder="Buscar pessoa..."
+                />
+              </div>
+              <button type="button" onClick={() => removeExtra(extra.id)}
+                className="mt-2 text-muted-foreground hover:text-destructive transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button"
+          className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors mt-3"
+          onClick={addExtra}>
+          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10">
+            <Plus className="w-3 h-3" />
+          </span>
+          Adicionar responsável
+        </button>
       </div>
     </div>
   );
@@ -475,15 +520,6 @@ function StepEstrutura({ form, setForm, errors }: {
 }) {
   return (
     <div className="space-y-5">
-      <div>
-        <FieldLabel optional>Local</FieldLabel>
-        <select className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-          value={form.local}
-          onChange={(e) => setForm((f) => ({ ...f, local: e.target.value as LocalType }))}>
-          {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-        </select>
-      </div>
-
       <div>
         <FieldLabel optional>Datas da turma</FieldLabel>
         <div className="grid grid-cols-2 gap-3">
@@ -726,7 +762,11 @@ function ModalDisciplina({ modulo, onClose, onSave }: {
   );
 }
 
-function StepGrade() {
+function StepGrade({ form, setForm }: {
+  form: TurmaFormData;
+  setForm: React.Dispatch<React.SetStateAction<TurmaFormData>>;
+}) {
+  // ── Aberto state ──────────────────────────────────────────────────────────
   const [modules, setModules] = useState<GradeModule[]>([
     { id: "m1", nome: "Módulo 1 — Fundamentos", disciplinas: [
       { id: "d1", professor: "Prof. Dr. Carlos Faria", modalidade: "presencial", numSessoes: 3, modulo: "Módulo 1 — Fundamentos" },
@@ -738,6 +778,46 @@ function StepGrade() {
   const [addDisciplinaFor, setAddDisciplinaFor] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ m1: true });
 
+  // ── Customizado state ─────────────────────────────────────────────────────
+  const [selectedDay, setSelectedDay] = useState(0);
+  const [editBlockId, setEditBlockId] = useState<string | null>(null);
+
+  const gradeModel = form.gradeModel;
+  const setGradeModel = (m: GradeModel) => setForm((f) => ({ ...f, gradeModel: m }));
+
+  const dayBlocks = (dIdx: number): DayBlock[] => form.customDayBlocks[dIdx] ?? [];
+  const setDayBlocks = (dIdx: number, blocks: DayBlock[]) =>
+    setForm((f) => ({ ...f, customDayBlocks: { ...f.customDayBlocks, [dIdx]: blocks } }));
+
+  const addBlock = (type: BlockType) => {
+    const defaults: Record<BlockType, { label: string; startTime: string; endTime: string }> = {
+      sessao:  { label: `Sessão ${dayBlocks(selectedDay).filter(b => b.type === "sessao").length + 1}`, startTime: "09:00", endTime: "10:30" },
+      coffee:  { label: "Coffee Break", startTime: "10:30", endTime: "11:00" },
+      almoco:  { label: "Almoço", startTime: "12:30", endTime: "14:00" },
+      pausa:   { label: "Pausa", startTime: "15:30", endTime: "15:45" },
+    };
+    const d = defaults[type];
+    const block: DayBlock = { id: crypto.randomUUID(), type, ...d };
+    setDayBlocks(selectedDay, [...dayBlocks(selectedDay), block]);
+  };
+
+  const updateBlock = (id: string, patch: Partial<DayBlock>) =>
+    setDayBlocks(selectedDay, dayBlocks(selectedDay).map(b => b.id === id ? { ...b, ...patch } : b));
+
+  const removeBlock = (id: string) =>
+    setDayBlocks(selectedDay, dayBlocks(selectedDay).filter(b => b.id !== id));
+
+  const BLOCK_COLORS: Record<BlockType, string> = {
+    sessao: "bg-primary/10 border-primary/30 text-primary",
+    coffee: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400",
+    almoco: "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-400",
+    pausa:  "bg-muted border-border text-muted-foreground",
+  };
+  const BLOCK_LABELS: Record<BlockType, string> = {
+    sessao: "Sessão", coffee: "Coffee Break", almoco: "Almoço", pausa: "Pausa",
+  };
+
+  // ── Aberto helpers ────────────────────────────────────────────────────────
   const addModule = () => {
     const name = newModuleName.trim();
     if (!name) return;
@@ -754,103 +834,262 @@ function StepGrade() {
 
   return (
     <div className="space-y-5">
-      {addDisciplinaFor && (
-        <ModalDisciplina
-          modulo={modules.find((m) => m.id === addDisciplinaFor)?.nome ?? ""}
-          onClose={() => setAddDisciplinaFor(null)}
-          onSave={(d) => addDisciplina(addDisciplinaFor, d)}
-        />
-      )}
-      <div className="flex items-center gap-2">
-        <input
-          className="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
-          placeholder="Nome do módulo..."
-          value={newModuleName}
-          onChange={(e) => setNewModuleName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addModule()}
-        />
-        <button onClick={addModule}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0">
-          <Plus className="w-3.5 h-3.5" /> Adicionar
-        </button>
+      {/* Model toggle */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-muted-foreground font-medium shrink-0">Modelo de grade:</span>
+        <div className="flex gap-1 p-1 bg-muted rounded-lg">
+          {([{ key: "aberto", label: "Aberto" }, { key: "customizado", label: "Customizado / Imersão" }] as const).map((m) => (
+            <button key={m.key} onClick={() => setGradeModel(m.key)}
+              className={cn("text-xs px-3 py-1.5 rounded-md transition-all font-medium",
+                gradeModel === m.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{m.label}</button>
+          ))}
+        </div>
       </div>
-      <div className="space-y-3">
-        {modules.map((mod) => (
-          <div key={mod.id} className="border border-border rounded-xl overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-muted/30">
-              <button onClick={() => setExpanded((p) => ({ ...p, [mod.id]: !p[mod.id] }))}
-                className="flex items-center gap-2 flex-1 text-left min-w-0">
-                {expanded[mod.id] ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                <span className="text-sm font-semibold text-foreground truncate">
-                  {editModuleId === mod.id ? (
-                    <input className="text-sm font-semibold text-foreground bg-transparent border-b border-primary focus:outline-none w-48"
-                      autoFocus defaultValue={mod.nome}
-                      onBlur={(e) => { setModules((p) => p.map((m) => m.id === mod.id ? { ...m, nome: e.target.value } : m)); setEditModuleId(null); }}
-                      onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur())}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : mod.nome}
-                </span>
-                <span className="text-xs text-muted-foreground ml-1 shrink-0">
-                  {mod.disciplinas.reduce((s, d) => s + d.numSessoes, 0)} sessões
-                </span>
-              </button>
-              <button onClick={() => setAddDisciplinaFor(mod.id)}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => setEditModuleId(editModuleId === mod.id ? null : mod.id)}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-                <Pencil className="w-3 h-3" />
-              </button>
-              <button onClick={() => deleteModule(mod.id)}
-                className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {expanded[mod.id] && (
-              <div className="divide-y divide-border">
-                {mod.disciplinas.length === 0 ? (
-                  <div className="px-4 py-4 text-center">
-                    <p className="text-xs text-muted-foreground">Nenhuma disciplina. Clique em + para adicionar.</p>
-                  </div>
-                ) : mod.disciplinas.map((d) => (
-                  <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{d.professor || "Professor TBD"}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
-                          d.modalidade === "presencial" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                        )}>{d.modalidade === "presencial" ? "Presencial" : "Online"}</span>
-                        <span className="text-xs text-muted-foreground">{d.numSessoes} sessão(s)</span>
+
+      {/* ── Aberto model ──────────────────────────────────────────────────── */}
+      {gradeModel === "aberto" && (
+        <>
+          {addDisciplinaFor && (
+            <ModalDisciplina
+              modulo={modules.find((m) => m.id === addDisciplinaFor)?.nome ?? ""}
+              onClose={() => setAddDisciplinaFor(null)}
+              onSave={(d) => addDisciplina(addDisciplinaFor, d)}
+            />
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+              placeholder="Nome do módulo..."
+              value={newModuleName}
+              onChange={(e) => setNewModuleName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addModule()}
+            />
+            <button onClick={addModule}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0">
+              <Plus className="w-3.5 h-3.5" /> Adicionar
+            </button>
+          </div>
+          <div className="space-y-3">
+            {modules.map((mod) => (
+              <div key={mod.id} className="border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-muted/30">
+                  <button onClick={() => setExpanded((p) => ({ ...p, [mod.id]: !p[mod.id] }))}
+                    className="flex items-center gap-2 flex-1 text-left min-w-0">
+                    {expanded[mod.id] ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {editModuleId === mod.id ? (
+                        <input className="text-sm font-semibold text-foreground bg-transparent border-b border-primary focus:outline-none w-48"
+                          autoFocus defaultValue={mod.nome}
+                          onBlur={(e) => { setModules((p) => p.map((m) => m.id === mod.id ? { ...m, nome: e.target.value } : m)); setEditModuleId(null); }}
+                          onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur())}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : mod.nome}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1 shrink-0">
+                      {mod.disciplinas.reduce((s, d) => s + d.numSessoes, 0)} sessões
+                    </span>
+                  </button>
+                  <button onClick={() => setAddDisciplinaFor(mod.id)}
+                    className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setEditModuleId(editModuleId === mod.id ? null : mod.id)}
+                    className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => deleteModule(mod.id)}
+                    className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {expanded[mod.id] && (
+                  <div className="divide-y divide-border">
+                    {mod.disciplinas.length === 0 ? (
+                      <div className="px-4 py-4 text-center">
+                        <p className="text-xs text-muted-foreground">Nenhuma disciplina. Clique em + para adicionar.</p>
                       </div>
+                    ) : mod.disciplinas.map((d) => (
+                      <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                        <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{d.professor || "Professor TBD"}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
+                              d.modalidade === "presencial" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                            )}>{d.modalidade === "presencial" ? "Presencial" : "Online"}</span>
+                            <span className="text-xs text-muted-foreground">{d.numSessoes} sessão(s)</span>
+                          </div>
+                        </div>
+                        <button onClick={() => removeDisciplina(mod.id, d.id)}
+                          className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {modules.length === 0 && (
+              <div className="border border-dashed border-border rounded-xl py-8 text-center">
+                <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-foreground font-medium">Nenhum módulo adicionado</p>
+                <p className="text-xs text-muted-foreground mt-1">Digite um nome acima e clique em Adicionar.</p>
+              </div>
+            )}
+          </div>
+          <div className="bg-muted/50 rounded-xl p-4 flex items-start gap-3">
+            <Globe className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-foreground">Integração Moodle</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Casos e documentos pedagógicos vinculados via API do Moodle após criação da turma.</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Customizado / Imersão model ───────────────────────────────────── */}
+      {gradeModel === "customizado" && (
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Defina a estrutura de blocos de cada dia. Cada dia pode ter uma composição diferente (sessões, coffee, almoço, pausas).
+          </p>
+
+          {/* Day tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {WEEK_DAYS.map((day, dIdx) => {
+              const count = dayBlocks(dIdx).length;
+              return (
+                <button key={dIdx} onClick={() => setSelectedDay(dIdx)}
+                  className={cn("px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
+                    selectedDay === dIdx
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : count > 0
+                        ? "bg-primary/5 border-primary/30 text-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                  )}>
+                  {day}
+                  {count > 0 && <span className="ml-1 text-[10px] opacity-70">{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Block list for selected day */}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">{WEEK_DAYS[selectedDay]} — estrutura do dia</span>
+              <span className="text-xs text-muted-foreground">{dayBlocks(selectedDay).length} bloco(s)</span>
+            </div>
+
+            {dayBlocks(selectedDay).length === 0 ? (
+              <div className="py-8 text-center">
+                <CalendarLucide className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-foreground font-medium">Nenhum bloco adicionado</p>
+                <p className="text-xs text-muted-foreground mt-1">Use os botões abaixo para montar a estrutura do dia.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {dayBlocks(selectedDay).map((block, i) => (
+                  <div key={block.id} className="flex items-start gap-3 px-4 py-3">
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0 mt-1" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      {editBlockId === block.id ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30"
+                              value={block.label}
+                              onChange={(e) => updateBlock(block.id, { label: e.target.value })}
+                              placeholder="Nome do bloco"
+                            />
+                            <div className="flex gap-1">
+                              <input type="time"
+                                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
+                                value={block.startTime}
+                                onChange={(e) => updateBlock(block.id, { startTime: e.target.value })}
+                              />
+                              <input type="time"
+                                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
+                                value={block.endTime}
+                                onChange={(e) => updateBlock(block.id, { endTime: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          {block.type === "sessao" && (
+                            <PeopleAutocomplete
+                              value={block.professor ?? ""}
+                              onChange={(v) => updateBlock(block.id, { professor: v })}
+                              placeholder="Professor..."
+                            />
+                          )}
+                          {block.type === "sessao" && (
+                            <input
+                              className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
+                              value={block.conteudo ?? ""}
+                              onChange={(e) => updateBlock(block.id, { conteudo: e.target.value })}
+                              placeholder="Conteúdo / tema..."
+                            />
+                          )}
+                          <button onClick={() => setEditBlockId(null)}
+                            className="text-xs text-primary hover:underline">Fechar</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium shrink-0", BLOCK_COLORS[block.type])}>
+                            {BLOCK_LABELS[block.type]}
+                          </span>
+                          <span className="text-sm font-medium text-foreground truncate">{block.label}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{block.startTime}–{block.endTime}</span>
+                          {block.professor && (
+                            <span className="text-xs text-muted-foreground truncate">{block.professor}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => removeDisciplina(mod.id, d.id)}
-                      className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => setEditBlockId(editBlockId === block.id ? null : block.id)}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => removeBlock(block.id)}
+                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        ))}
-        {modules.length === 0 && (
-          <div className="border border-dashed border-border rounded-xl py-8 text-center">
-            <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-foreground font-medium">Nenhum módulo adicionado</p>
-            <p className="text-xs text-muted-foreground mt-1">Digite um nome acima e clique em Adicionar.</p>
+
+          {/* Add block buttons */}
+          <div className="flex gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground self-center">Adicionar:</span>
+            {([
+              { type: "sessao" as BlockType, label: "+ Sessão", color: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/15" },
+              { type: "coffee" as BlockType, label: "+ Coffee Break", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/15" },
+              { type: "almoco" as BlockType, label: "+ Almoço", color: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 hover:bg-green-500/15" },
+              { type: "pausa" as BlockType, label: "+ Pausa", color: "bg-muted text-muted-foreground border-border hover:bg-muted/80" },
+            ]).map((btn) => (
+              <button key={btn.type} onClick={() => addBlock(btn.type)}
+                className={cn("px-3 py-1.5 text-xs font-medium rounded-lg border transition-all", btn.color)}>
+                {btn.label}
+              </button>
+            ))}
           </div>
-        )}
-      </div>
-      <div className="bg-muted/50 rounded-xl p-4 flex items-start gap-3">
-        <Globe className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-        <div>
-          <p className="text-xs font-semibold text-foreground">Integração Moodle</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Casos e documentos pedagógicos vinculados via API do Moodle após criação da turma.</p>
+
+          {/* Copy structure hint */}
+          <div className="bg-muted/40 rounded-xl p-3 flex items-center gap-2">
+            <Copy className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Dica: estruture um dia e replique nos demais copiando os blocos manualmente. Vinculação com datas ocorre no passo <strong>Dias de aula</strong>.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1192,11 +1431,15 @@ function DroppableCell({ dayIdx, timeIdx, children, isOver, isEmpty }: {
   );
 }
 
-function StepDiasAula() {
+function StepDiasAula({ form }: { form: TurmaFormData }) {
   const [viewDir, setViewDir] = useState<"horizontal" | "vertical">("horizontal");
   const [sessoes, setSessoes] = useState<AllocSessao[]>(MOCK_ALLOC_SESSOES);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [dayLocals, setDayLocals] = useState<Record<number, LocalType>>({});
+
+  const setDayLocal = (dIdx: number, val: LocalType) =>
+    setDayLocals((prev) => ({ ...prev, [dIdx]: val }));
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -1239,6 +1482,70 @@ function StepDiasAula() {
 
   return (
     <TooltipProvider delayDuration={400}>
+
+    {/* ── Customizado view ──────────────────────────────────────────────────── */}
+    {form.gradeModel === "customizado" && (
+      <div className="space-y-4">
+        {WEEK_DAYS.map((day, dIdx) => {
+          const blocks = form.customDayBlocks[dIdx] ?? [];
+          if (blocks.length === 0) return null;
+          return (
+            <div key={dIdx} className="border border-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">{day}</span>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="text-xs px-2 py-1 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground"
+                    value={dayLocals[dIdx] ?? ""}
+                    onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
+                    <option value="">Local…</option>
+                    {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="divide-y divide-border">
+                {blocks.map((block) => (
+                  <div key={block.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="text-xs text-muted-foreground font-mono w-20 shrink-0">
+                      {block.startTime}–{block.endTime}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium shrink-0",
+                          block.type === "sessao" ? "bg-primary/10 border-primary/30 text-primary" :
+                          block.type === "coffee" ? "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400" :
+                          block.type === "almoco" ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-400" :
+                          "bg-muted border-border text-muted-foreground"
+                        )}>
+                          {block.type === "sessao" ? "Sessão" : block.type === "coffee" ? "Coffee" : block.type === "almoco" ? "Almoço" : "Pausa"}
+                        </span>
+                        <span className="text-sm font-medium text-foreground">{block.label}</span>
+                      </div>
+                      {block.professor && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{block.professor}</p>
+                      )}
+                      {block.conteudo && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{block.conteudo}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {WEEK_DAYS.every((_, dIdx) => (form.customDayBlocks[dIdx] ?? []).length === 0) && (
+          <div className="border border-dashed border-border rounded-xl py-10 text-center">
+            <CalendarLucide className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm font-medium text-foreground">Nenhuma estrutura definida</p>
+            <p className="text-xs text-muted-foreground mt-1">Volte ao passo <strong>Grade</strong> e monte os blocos de cada dia.</p>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* ── Aberto drag-drop view ──────────────────────────────────────────── */}
+    {form.gradeModel !== "customizado" && (
     <DndContext sensors={sensors} onDragStart={handleDragStart}
       onDragOver={(e) => setOverId(e.over ? String(e.over.id) : null)}
       onDragEnd={handleDragEnd}
@@ -1302,6 +1609,19 @@ function StepDiasAula() {
                     <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
                   ))}
                 </div>
+                {/* Local per day row */}
+                <div className="grid gap-0.5 mb-2" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
+                  <div className="text-xs text-muted-foreground text-right pr-1.5 self-center">Local</div>
+                  {WEEK_DAYS.map((_, dIdx) => (
+                    <select key={dIdx}
+                      className="text-xs px-1.5 py-1 bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground w-full"
+                      value={dayLocals[dIdx] ?? ""}
+                      onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
+                      <option value="">—</option>
+                      {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                  ))}
+                </div>
                 {TIME_ROWS.map((time, tIdx) => (
                   <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)`, gridAutoRows: "40px" }}>
                     <div className="h-10 flex items-center justify-end text-xs text-muted-foreground pr-1.5">{time}</div>
@@ -1333,8 +1653,17 @@ function StepDiasAula() {
                   ))}
                 </div>
                 {WEEK_DAYS.map((day, dIdx) => (
-                  <div key={day} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)`, gridAutoRows: "40px" }}>
-                    <div className="h-10 flex items-center justify-end text-xs font-semibold text-foreground pr-1.5">{day}</div>
+                  <div key={day} className="grid gap-0.5 mb-0.5" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)`, gridAutoRows: "40px" }}>
+                    <div className="h-10 flex flex-col items-end justify-center pr-1.5 gap-0.5">
+                      <span className="text-xs font-semibold text-foreground leading-none">{day}</span>
+                      <select
+                        className="text-[10px] px-1 py-0.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary/30 text-muted-foreground w-full max-w-[48px]"
+                        value={dayLocals[dIdx] ?? ""}
+                        onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
+                        <option value="">—</option>
+                        {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                      </select>
+                    </div>
                     {TIME_ROWS.map((_, tIdx) => {
                       const placed = getSessionAt(dIdx, tIdx);
                       const cellId = `cell-${dIdx}-${tIdx}`;
@@ -1373,6 +1702,8 @@ function StepDiasAula() {
         )}
       </DragOverlay>
     </DndContext>
+    )}
+
     </TooltipProvider>
   );
 }
@@ -1398,6 +1729,7 @@ export default function NewTurmaPage() {
     ],
     anoInicio: String(new Date().getFullYear()), anoConclusion: "",
     local: "campus_ise", tipoPrograma: "custom",
+    gradeModel: "aberto", customDayBlocks: {},
   };
 
   const [form, setForm] = useState<TurmaFormData>(
@@ -1417,6 +1749,7 @@ export default function NewTurmaPage() {
       anoInicio: editTurma.anoInicio || String(new Date().getFullYear()),
       anoConclusion: editTurma.anoConclusion || "",
       local: editTurma.local || "campus_ise", tipoPrograma: editTurma.tipoPrograma || "custom",
+      gradeModel: editTurma.gradeModel || "aberto", customDayBlocks: editTurma.customDayBlocks || {},
     } : emptyTurmaForm
   );
   const [step, setStep] = useState(0);
@@ -1433,7 +1766,7 @@ export default function NewTurmaPage() {
       if (!form.anoConclusion) e.anoConclusion = "Ano de conclusão é obrigatório";
     }
     if (s === 1) {
-      // all optional
+      if (!form.diretorTurma?.trim()) e.diretorTurma = "Diretor(a) da turma é obrigatório";
     }
     // step 2 has no required fields
     // steps 3, 4, 5 have no required fields
@@ -1530,9 +1863,9 @@ export default function NewTurmaPage() {
             {step === 0 && <StepIdentificacao form={form} setForm={setForm} errors={errors} setErrors={setErrors} programs={programs} />}
             {step === 1 && <StepResponsaveis form={form} setForm={setForm} errors={errors} setErrors={setErrors} />}
             {step === 2 && <StepEstrutura form={form} setForm={setForm} errors={errors} />}
-            {step === 3 && <StepGrade />}
+            {step === 3 && <StepGrade form={form} setForm={setForm} />}
             {step === 4 && <StepDetalhes />}
-            {step === 5 && <StepDiasAula />}
+            {step === 5 && <StepDiasAula form={form} />}
           </div>
         </div>
 

@@ -1440,6 +1440,11 @@ export default function CalendarPage() {
               year={year}
               onPrevMonth={() => setMonth((m) => Math.max(0, m - 1))}
               onNextMonth={() => setMonth((m) => Math.min(11, m + 1))}
+              onPrevPeriod={handlePrev}
+              onNextPeriod={handleNext}
+              selectedDay={view === "day" ? currentDay : null}
+              weekStart={view === "week" ? weekStart : null}
+              weekEnd={view === "week" ? weekEnd : null}
               onSelectDay={(d) => {
                 if (view === "day") { setCurrentDay(d); }
                 else if (view === "week") { setWeekStart(d); }
@@ -1974,7 +1979,7 @@ function EventTooltip({ ev }: { ev: CalendarEvent }) {
 
 // ── Right Insights Panel (recolhível) ──────────────────────────────
 function RightInsightsPanel({
-  open, onToggle, events, view, onChangeView, month, year, onPrevMonth, onNextMonth, onSelectDay,
+  open, onToggle, events, view, onChangeView, month, year, onPrevMonth, onNextMonth, onPrevPeriod, onNextPeriod, selectedDay, weekStart, weekEnd, onSelectDay,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -1985,6 +1990,11 @@ function RightInsightsPanel({
   year: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  onPrevPeriod: () => void;
+  onNextPeriod: () => void;
+  selectedDay: number | null;
+  weekStart: number | null;
+  weekEnd: number | null;
   onSelectDay: (day: number) => void;
 }) {
   // Considerar eventos do dia 11 como "período corresponde à visualização" para insights rápidos
@@ -2007,6 +2017,8 @@ function RightInsightsPanel({
   // Mini-calendário
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const quarterStart = Math.floor(month / 3) * 3;
+  const semesterStart = Math.floor(month / 6) * 6;
 
   if (!open) {
     return (
@@ -2031,30 +2043,79 @@ function RightInsightsPanel({
         </button>
       </div>
 
-      {/* Mini-calendário */}
+      {/* Mini-calendário / Seletor de período */}
       <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={onPrevMonth} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronLeft className="w-3.5 h-3.5" /></button>
-          <p className="text-xs font-semibold text-foreground">{MONTHS[month]} {year}</p>
-          <button onClick={onNextMonth} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronRight className="w-3.5 h-3.5" /></button>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5 text-center">
-          {DAYS.map((d) => <div key={d} className="text-[10px] text-muted-foreground py-0.5">{d[0]}</div>)}
-          {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`e-${i}`} />)}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const d = i + 1;
-            const isToday = d === 11;
-            return (
-              <div key={d}
-                onClick={() => onSelectDay(d)}
-                className={cn(
-                  "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer transition-colors hover:bg-primary/20",
-                  isToday && "bg-primary text-primary-foreground font-bold hover:bg-primary",
-                )}>{d}</div>
-            );
-          })}
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-2 text-center">Hoje: 11/03 Segunda</p>
+        {(view === "quarter" || view === "semester") ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <button onClick={onPrevPeriod} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <p className="text-xs font-semibold text-foreground">{year}</p>
+              <button onClick={onNextPeriod} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {MONTHS.map((monthName, mIdx) => {
+                const isSelected = view === "quarter"
+                  ? mIdx >= quarterStart && mIdx <= quarterStart + 2
+                  : mIdx >= semesterStart && mIdx <= semesterStart + 5;
+                return (
+                  <div key={mIdx} className={cn(
+                    "text-[10px] py-1.5 text-center rounded-md cursor-default transition-colors",
+                    isSelected ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground"
+                  )}>
+                    {monthName.slice(0, 3)}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : view === "year" ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <button onClick={onPrevPeriod} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <p className="text-xs font-semibold text-foreground">Anos</p>
+              <button onClick={onNextPeriod} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {Array.from({ length: 8 }, (_, i) => year - 3 + i).map((y) => (
+                <div key={y} className={cn(
+                  "text-[10px] py-1.5 text-center rounded-md cursor-default transition-colors",
+                  y === year ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground hover:bg-muted"
+                )}>
+                  {y}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <button onClick={onPrevMonth} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <p className="text-xs font-semibold text-foreground">{MONTHS[month]} {year}</p>
+              <button onClick={onNextMonth} className="p-1 rounded hover:bg-muted text-muted-foreground"><ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 text-center">
+              {DAYS.map((d) => <div key={d} className="text-[10px] text-muted-foreground py-0.5">{d[0]}</div>)}
+              {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`e-${i}`} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const d = i + 1;
+                const isActive = view === "day"
+                  ? d === selectedDay
+                  : view === "week"
+                  ? (weekStart !== null && weekEnd !== null && d >= weekStart && d <= weekEnd)
+                  : false;
+                return (
+                  <div key={d}
+                    onClick={() => onSelectDay(d)}
+                    className={cn(
+                      "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer transition-colors hover:bg-primary/20",
+                      isActive && "bg-primary text-primary-foreground font-bold hover:bg-primary",
+                    )}>{d}</div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2 text-center">Hoje: 11/03 Segunda</p>
+          </>
+        )}
       </div>
 
       {/* Seletor de visualização */}
