@@ -444,6 +444,20 @@ export default function TurmaCPanelPage() {
   const [newDayLabel, setNewDayLabel] = useState("");
   const [newDayDate, setNewDayDate] = useState("");
 
+  const handleDayTaskStatusChange = (pkgId: string, taskId: number, newStatus: TaskStatus) => {
+    setDayPackages((prev) =>
+      prev.map((pkg) =>
+        pkg.id !== pkgId ? pkg : {
+          ...pkg,
+          deliveries: pkg.deliveries.map((del) => ({
+            ...del,
+            tasks: del.tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+          })),
+        }
+      )
+    );
+  };
+
   const handleStatusChange = (taskId: number, newStatus: TaskStatus) => {
     setPhases((prev) =>
       prev.map((phase) => ({
@@ -710,7 +724,7 @@ export default function TurmaCPanelPage() {
                           {delivery.tasks.map((task) => (
                             <div key={task.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors">
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <TaskStatusIcon status={task.status} />
+                                <StatusCycle status={task.status} onChange={(s) => handleDayTaskStatusChange(pkg.id, task.id, s)} />
                                 <span className={cn("text-xs font-medium", task.status === "done" ? "line-through text-muted-foreground" : "text-foreground")}>
                                   {task.title}
                                 </span>
