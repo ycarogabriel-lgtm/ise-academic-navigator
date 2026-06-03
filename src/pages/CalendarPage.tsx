@@ -604,7 +604,7 @@ export default function CalendarPage() {
   const [filterProfessor, setFilterProfessor] = useState("");
   const [filterProfessorType, setFilterProfessorType] = useState<"" | "ISE" | "Convidado" | "Externo">("");
   const [filterTheme, setFilterTheme] = useState("");
-  const [filterTurma, setFilterTurma] = useState("");
+  const [selectedTurmas, setSelectedTurmas] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<"" | Status>("");
 
   // Painel lateral: lista de recursos com checkbox
@@ -640,12 +640,12 @@ export default function CalendarPage() {
     if (filterProfessor && e.professor !== filterProfessor) return false;
     if (filterProfessorType && PROFESSOR_TYPE[e.professor] !== filterProfessorType) return false;
     if (filterTheme && e.theme !== filterTheme) return false;
-    if (filterTurma && e.program !== filterTurma) return false;
+    if (selectedTurmas.length > 0 && !selectedTurmas.includes(e.program)) return false;
     if (filterStatus && e.status !== filterStatus) return false;
     return true;
   });
 
-  const hasFilters = !!(filterRoomCategory || filterProfessor || filterProfessorType || filterTheme || filterTurma || filterStatus || selectedRooms.length > 0);
+  const hasFilters = !!(filterRoomCategory || filterProfessor || filterProfessorType || filterTheme || selectedTurmas.length > 0 || filterStatus || selectedRooms.length > 0);
 
   const visibleResources = useMemo(() => {
     if (resourceKind === "professors") return PROFESSORS;
@@ -683,7 +683,7 @@ export default function CalendarPage() {
 
   const clearAll = () => {
     setFilterRoomCategory(""); setFilterProfessor(""); setFilterProfessorType("");
-    setFilterTheme(""); setFilterTurma(""); setFilterStatus(""); setSelectedRooms([]);
+    setFilterTheme(""); setSelectedTurmas([]); setFilterStatus(""); setSelectedRooms([]);
   };
 
   const updateDaySelection = (day: number) => {
@@ -960,14 +960,11 @@ export default function CalendarPage() {
               </select>
             </FilterChip>
 
-            {/* Turmas */}
-            <FilterChip label="Turmas" value={filterTurma || "Todas as turmas"} active={!!filterTurma}>
-              <select value={filterTurma} onChange={(e) => setFilterTurma(e.target.value)}
-                className="absolute inset-0 opacity-0 cursor-pointer">
-                <option value="">Todas as turmas</option>
-                {TURMAS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </FilterChip>
+            <TurmaMultiSelect
+              turmas={TURMAS}
+              selectedTurmas={selectedTurmas}
+              onChangeSelectedTurmas={setSelectedTurmas}
+            />
 
             {/* Tipo de docente */}
             <FilterChip label="Tipo de docente" value={filterProfessorType || "Todos os tipos"} active={!!filterProfessorType}>
@@ -1730,6 +1727,76 @@ function RoomMultiSelect({
                     <span className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", checked ? "border-primary bg-primary text-primary-foreground" : "border-input")}>{checked && <Check className="h-3 w-3" />}</span>
                     <span className="flex-1 truncate">{room}</span>
                     <span className="text-[10px] text-muted-foreground">{roomCategory(room)}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandSeparator />
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TurmaMultiSelect({
+  turmas,
+  selectedTurmas,
+  onChangeSelectedTurmas,
+}: {
+  turmas: string[];
+  selectedTurmas: string[];
+  onChangeSelectedTurmas: (turmas: string[]) => void;
+}) {
+  const allSelected = turmas.length > 0 && selectedTurmas.length === turmas.length && turmas.every((turma) => selectedTurmas.includes(turma));
+  const label = selectedTurmas.length > 0
+    ? `${selectedTurmas.length} selecionada${selectedTurmas.length === 1 ? "" : "s"}`
+    : "Todas as turmas";
+
+  const toggleTurma = (turma: string) => {
+    onChangeSelectedTurmas(
+      selectedTurmas.includes(turma)
+        ? selectedTurmas.filter((selectedTurma) => selectedTurma !== turma)
+        : [...selectedTurmas, turma],
+    );
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/40",
+          selectedTurmas.length > 0 ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground",
+        )}>
+          <span className="text-muted-foreground">Turmas:</span>
+          <span className="font-medium">{label}</span>
+          <ChevronRight className="h-3 w-3 rotate-90 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[360px] p-0">
+        <Command>
+          <CommandInput placeholder="Buscar turma..." />
+          <div className="flex items-center justify-between border-b border-border px-2 py-2">
+            <button
+              type="button"
+              onClick={() => onChangeSelectedTurmas(allSelected ? [] : [...turmas])}
+              className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+            >
+              {allSelected ? "Limpar seleção" : "Selecionar todas"}
+            </button>
+            <span className="text-xs text-muted-foreground">{turmas.length} opções</span>
+          </div>
+          <CommandList>
+            <CommandEmpty>Nenhuma turma encontrada.</CommandEmpty>
+            <CommandGroup heading="Turmas disponíveis">
+              {turmas.map((turma) => {
+                const checked = selectedTurmas.includes(turma);
+                return (
+                  <CommandItem key={turma} value={turma} onSelect={() => toggleTurma(turma)} className="gap-2">
+                    <span className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", checked ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
+                      {checked && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="flex-1 truncate">{turma}</span>
                   </CommandItem>
                 );
               })}

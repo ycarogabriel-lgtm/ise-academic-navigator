@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 type ProgramType = "custom" | "aberto" | "imersao" | "colaboradores" | "educacao_executiva" | "emba" | "eventos" | "internacionais" | "llm" | "mba_full_time" | "easy_humanidades";
 type ModalityType = "presencial" | "hibrido" | "online";
 type LocalType = "campus_ise" | "externo";
+type NomeFantasiaUso = "geral" | "espaco" | "recurso" | "docente" | "calendario";
 
 interface Person { id: string; name: string; role: string }
 interface Program { id: number; name: string; sigla: string; cliente?: string; status: string }
@@ -40,11 +41,12 @@ interface DayBlock {
 interface TurmaFormData {
   nomeTurma: string; siglaTurma: string; programaId: number | "";
   diretorPrograma: string; nomeFinanceiro: string; nomeFantasia: string;
+  nomeFantasiaUso: NomeFantasiaUso;
   coordenador: string; diretorAcademico: string; planejamento: string;
   producaoMateriais: string; codigoFinanceiro: string;
   diretorTurma?: string; coordenadorTurma?: string;
   coordenadorAcademico?: string; responsavelMateriais?: string;
-  nomeFantasiaI18n: Array<{ langCode: string; langLabel: string; value: string }>;
+  nomeFantasiaI18n: Array<{ langCode: string; langLabel: string; value: string; uso: NomeFantasiaUso }>;
   periodoStart?: Date; periodoEnd?: Date; diasPrograma: number | "";
   numParticipantes: number | ""; estimativaAlunos: number | "";
   modalidade: ModalityType; anoInicio: string; anoConclusion: string;
@@ -98,6 +100,13 @@ const AVAILABLE_LANGUAGES = [
   { code: "ar", label: "Árabe" },
   { code: "ru", label: "Russo" },
   { code: "pt-pt", label: "Português (Portugal)" },
+];
+const NOME_FANTASIA_USOS: { value: NomeFantasiaUso; label: string }[] = [
+  { value: "geral", label: "Geral" },
+  { value: "espaco", label: "Espaço" },
+  { value: "recurso", label: "Recurso" },
+  { value: "docente", label: "Docente" },
+  { value: "calendario", label: "Calendário" },
 ];
 const STEPS = ["Identificação", "Responsáveis", "Informações da Turma", "Grade", "Detalhes das sessões", "Dias de aula"];
 
@@ -317,6 +326,15 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
               <Globe className="w-3 h-3 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Padrão</span>
             </div>
+            <select
+              className="w-36 px-2 py-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+              value={form.nomeFantasiaUso}
+              onChange={(e) => setForm((f) => ({ ...f, nomeFantasiaUso: e.target.value as NomeFantasiaUso }))}
+            >
+              {NOME_FANTASIA_USOS.map((uso) => (
+                <option key={uso.value} value={uso.value}>{uso.label}</option>
+              ))}
+            </select>
             <input className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
               value={form.nomeFantasia}
               onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))}
@@ -328,6 +346,18 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
                 <Globe className="w-3 h-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">{item.langLabel}</span>
               </div>
+              <select
+                className="w-36 px-2 py-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+                value={item.uso}
+                onChange={(e) => {
+                  const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, uso: e.target.value as NomeFantasiaUso } : l);
+                  setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
+                }}
+              >
+                {NOME_FANTASIA_USOS.map((uso) => (
+                  <option key={uso.value} value={uso.value}>{uso.label}</option>
+                ))}
+              </select>
               <input
                 className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 value={item.value}
@@ -364,7 +394,7 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
                       onClick={() => {
                         setForm((f) => ({
                           ...f,
-                          nomeFantasiaI18n: [...f.nomeFantasiaI18n, { langCode: lang.code, langLabel: lang.label, value: "" }],
+                          nomeFantasiaI18n: [...f.nomeFantasiaI18n, { langCode: lang.code, langLabel: lang.label, value: "", uso: f.nomeFantasiaUso }],
                         }));
                         setShowLangPicker(false);
                       }}>
@@ -1719,13 +1749,13 @@ export default function NewTurmaPage() {
 
   const emptyTurmaForm: TurmaFormData = {
     nomeTurma: "", siglaTurma: "", programaId: state.initialProgramId || "",
-    diretorPrograma: "", nomeFinanceiro: "", nomeFantasia: "", coordenador: "",
+    diretorPrograma: "", nomeFinanceiro: "", nomeFantasia: "", nomeFantasiaUso: "geral", coordenador: "",
     diretorAcademico: "", planejamento: "", producaoMateriais: "", codigoFinanceiro: "",
     periodoStart: undefined, periodoEnd: undefined, diasPrograma: "",
     numParticipantes: "", estimativaAlunos: "", modalidade: "presencial",
     nomeFantasiaI18n: [
-      { langCode: "en", langLabel: "Inglês", value: "" },
-      { langCode: "es", langLabel: "Espanhol", value: "" },
+      { langCode: "en", langLabel: "Inglês", value: "", uso: "geral" },
+      { langCode: "es", langLabel: "Espanhol", value: "", uso: "geral" },
     ],
     anoInicio: String(new Date().getFullYear()), anoConclusion: "",
     local: "campus_ise", tipoPrograma: "custom",
@@ -1736,16 +1766,19 @@ export default function NewTurmaPage() {
     isEdit && editTurma ? {
       nomeTurma: editTurma.nomeTurma, siglaTurma: editTurma.siglaTurma, programaId: editTurma.programaId,
       diretorPrograma: editTurma.diretorPrograma, nomeFinanceiro: editTurma.nomeFinanceiro || "",
-      nomeFantasia: editTurma.nomeFantasia || "", coordenador: editTurma.coordenador || "",
+      nomeFantasia: editTurma.nomeFantasia || "", nomeFantasiaUso: editTurma.nomeFantasiaUso || "geral", coordenador: editTurma.coordenador || "",
       diretorAcademico: editTurma.diretorAcademico || "", planejamento: editTurma.planejamento || "",
       producaoMateriais: editTurma.producaoMateriais || "", codigoFinanceiro: editTurma.codigoFinanceiro || "",
       periodoStart: editTurma.periodoStart, periodoEnd: editTurma.periodoEnd,
       diasPrograma: editTurma.diasPrograma || "", numParticipantes: editTurma.numParticipantes || "",
       estimativaAlunos: editTurma.estimativaAlunos || "", modalidade: editTurma.modalidade || "presencial",
-      nomeFantasiaI18n: editTurma.nomeFantasiaI18n ?? [
-        { langCode: "en", langLabel: "Inglês", value: "" },
-        { langCode: "es", langLabel: "Espanhol", value: "" },
-      ],
+      nomeFantasiaI18n: (editTurma.nomeFantasiaI18n ?? [
+        { langCode: "en", langLabel: "Inglês", value: "", uso: "geral" },
+        { langCode: "es", langLabel: "Espanhol", value: "", uso: "geral" },
+      ]).map((item: { langCode: string; langLabel: string; value: string; uso?: NomeFantasiaUso }) => ({
+        ...item,
+        uso: item.uso || "geral",
+      })),
       anoInicio: editTurma.anoInicio || String(new Date().getFullYear()),
       anoConclusion: editTurma.anoConclusion || "",
       local: editTurma.local || "campus_ise", tipoPrograma: editTurma.tipoPrograma || "custom",
