@@ -14,6 +14,7 @@ import {
   GraduationCap,
   ClipboardList,
   Building2,
+  ListTodo,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import iseLogo1 from "@/assets/ISE Logo1.svg";
@@ -25,7 +26,8 @@ const navItems = [
     items: [
       { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
       { label: "Calendário", icon: Calendar, path: "/calendar" },
-      { label: "Mapa de Calor", icon: BarChart3, path: "/occupancy" },
+      { label: "Relatórios dinâmicos", icon: BarChart3, path: "/occupancy" },
+      { label: "Tarefas", icon: ListTodo, path: "/tasks" },
     ],
   },
   {

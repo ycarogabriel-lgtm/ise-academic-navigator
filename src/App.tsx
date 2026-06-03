@@ -20,6 +20,7 @@ import NewProgramPage from "./pages/NewProgramPage";
 import NewTurmaPage from "./pages/NewTurmaPage";
 import TurmaCPanelPage from "./pages/TurmaCPanelPage";
 import DiasDeEntregaPage from "./pages/DiasDeEntregaPage";
+import TasksPage from "./pages/TasksPage";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
           <Route path="/programs/turma/edit" element={<NewTurmaPage />} />
           <Route path="/programs/turma/dias-entrega" element={<DiasDeEntregaPage />} />
           <Route path="/programs/turma/cpanel" element={<TurmaCPanelPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

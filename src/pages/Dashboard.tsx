@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   GraduationCap,
@@ -147,6 +148,7 @@ const turmaStatusConfig: Record<TurmaStatus, { label: string; badgeClass: string
 
 export default function Dashboard() {
   const [statsCollapsed, setStatsCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <AppLayout pageTitle="Dashboard" pageSubtitle="Visão geral da operação acadêmica">
@@ -282,7 +284,7 @@ export default function Dashboard() {
               <h3 className="font-display font-bold text-foreground text-sm">Tarefas</h3>
               <p className="text-muted-foreground text-xs mt-0.5">Últimas atualizações de tarefas</p>
             </div>
-            <button className="text-primary text-xs font-medium hover:underline flex items-center gap-1">
+            <button onClick={() => navigate("/tasks")} className="text-primary text-xs font-medium hover:underline flex items-center gap-1">
               Ver todas <ArrowRight className="w-3 h-3" />
             </button>
           </div>
