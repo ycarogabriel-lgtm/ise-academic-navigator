@@ -424,7 +424,7 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <FieldLabel optional>Coordenador</FieldLabel>
+          <FieldLabel optional>Coordenador Acadêmico</FieldLabel>
           <PeopleAutocomplete value={form.coordenador}
             onChange={(v) => setForm((f) => ({ ...f, coordenador: v }))}
             placeholder="Coordenador acadêmico..." />
@@ -437,12 +437,6 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FieldLabel optional>Produção de materiais</FieldLabel>
-          <PeopleAutocomplete value={form.producaoMateriais}
-            onChange={(v) => setForm((f) => ({ ...f, producaoMateriais: v }))}
-            placeholder="Responsável por materiais..." />
-        </div>
       </div>
 
       <div className="border-t border-border pt-5">
@@ -462,12 +456,6 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 mt-4">
-          <div>
-            <FieldLabel optional>Coordenador Acadêmico</FieldLabel>
-            <PeopleAutocomplete value={form.coordenadorAcademico ?? ""}
-              onChange={(v) => setForm((f) => ({ ...f, coordenadorAcademico: v }))}
-              placeholder="Buscar coordenador acadêmico..." />
-          </div>
           <div>
             <FieldLabel optional>Responsável por Materiais</FieldLabel>
             <PeopleAutocomplete value={form.responsavelMateriais ?? ""}
