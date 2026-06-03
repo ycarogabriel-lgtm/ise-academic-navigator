@@ -656,7 +656,7 @@ export default function TasksPage() {
                 <Icon className={cn("w-4 h-4", color)} />
                 <span className="text-xs text-muted-foreground">{label}</span>
               </div>
-              <p className={cn("font-display font-bold text-3xl", color)}>{count}</p>
+              <p className="font-display font-bold text-3xl text-foreground">{count}</p>
             </button>
           ))}
         </div>
