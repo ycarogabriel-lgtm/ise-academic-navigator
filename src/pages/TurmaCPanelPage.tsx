@@ -5,7 +5,7 @@ import {
   Circle, MinusCircle, ChevronDown, ChevronUp, MessageSquare,
   User, Calendar, BarChart2, Filter, BookOpen, Monitor,
   FileText, Send, Award, Bell, Users, Building2, Layers,
-  GraduationCap, CheckCheck, RefreshCw, AlertTriangle
+  GraduationCap, CheckCheck, RefreshCw, AlertTriangle, Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -295,6 +295,20 @@ function StatusCycle({ status, onChange }: { status: TaskStatus; onChange: (s: T
   );
 }
 
+function TaskStatusIcon({ status }: { status: TaskStatus }) {
+  const cfg = STATUS_CONFIG[status];
+  return <span className={cn("shrink-0", cfg.class)}>{cfg.icon}</span>;
+}
+
+function StatusBadge({ status }: { status: TaskStatus }) {
+  const cfg = STATUS_CONFIG[status];
+  return (
+    <span className={cn("text-xs px-1.5 py-0.5 rounded-full border font-medium whitespace-nowrap", cfg.badgeClass)}>
+      {cfg.label}
+    </span>
+  );
+}
+
 function TaskRow({ task, onStatusChange }: { task: CPanelTask; onStatusChange: (id: number, s: TaskStatus) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(task.notes || "");
@@ -409,17 +423,26 @@ function CategoryBlock({
 export default function TurmaCPanelPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state as { turmaName?: string; programName?: string; siglaTurma?: string } | null;
+  const state = location.state as {
+    turmaName?: string;
+    programName?: string;
+    siglaTurma?: string;
+    deliveryDays?: { label: string; date: string }[];
+  } | null;
 
   const turmaName = state?.turmaName || "Turma A 2024";
   const programName = state?.programName || "MBA Executivo";
   const siglaTurma = state?.siglaTurma || "T24A";
+  const deliveryDays = state?.deliveryDays ?? null;
 
   const [phases, setPhases] = useState<CPanelPhase[]>(CPANEL_PHASES);
   const [activePhase, setActivePhase] = useState("pre_abertura");
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
   const [mobilePhaseOpen, setMobilePhaseOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"phases" | "days">("phases");
+  const [viewMode, setViewMode] = useState<"phases" | "days">(deliveryDays && deliveryDays.length > 0 ? "days" : "phases");
+  const [addDayOpen, setAddDayOpen] = useState(false);
+  const [newDayLabel, setNewDayLabel] = useState("");
+  const [newDayDate, setNewDayDate] = useState("");
 
   const handleStatusChange = (taskId: number, newStatus: TaskStatus) => {
     setPhases((prev) =>
@@ -462,7 +485,60 @@ export default function TurmaCPanelPage() {
     { label: "Pendentes", value: totalPending, icon: <Clock className="w-4 h-4" />, textColor: "text-warning" },
   ];
 
-  const dayPackages = [
+  const buildDayPackage = (d: { label: string; date: string }, i: number) => ({
+        id: `dia${i + 1}`,
+        label: d.label,
+        date: d.date,
+        deliveries: [
+          {
+            category: "Grade Acadêmica",
+            tasks: [
+              { id: (i + 1) * 100 + 1, title: `Plano de aulas do ${d.label} entregue`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "high" as TaskPriority, category: "grade" },
+            ],
+          },
+          {
+            category: "Moodle",
+            tasks: [
+              { id: (i + 1) * 100 + 2, title: `Materiais do ${d.label} publicados no Moodle`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "high" as TaskPriority, category: "moodle" },
+            ],
+          },
+          {
+            category: "Logística",
+            tasks: [
+              { id: (i + 1) * 100 + 3, title: `Sala e equipamentos do ${d.label} verificados`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "medium" as TaskPriority, category: "logistica" },
+            ],
+          },
+        ],
+      });
+
+  const [dayPackages, setDayPackages] = useState(() =>
+    deliveryDays && deliveryDays.length > 0
+    ? deliveryDays.map((d, i) => ({
+        id: `dia${i + 1}`,
+        label: d.label,
+        date: d.date,
+        deliveries: [
+          {
+            category: "Grade Acadêmica",
+            tasks: [
+              { id: (i + 1) * 100 + 1, title: `Plano de aulas do ${d.label} entregue`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "high" as TaskPriority, category: "grade" },
+            ],
+          },
+          {
+            category: "Moodle",
+            tasks: [
+              { id: (i + 1) * 100 + 2, title: `Materiais do ${d.label} publicados no Moodle`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "high" as TaskPriority, category: "moodle" },
+            ],
+          },
+          {
+            category: "Logística",
+            tasks: [
+              { id: (i + 1) * 100 + 3, title: `Sala e equipamentos do ${d.label} verificados`, responsible: "—", dueDate: "—", status: "pending" as TaskStatus, priority: "medium" as TaskPriority, category: "logistica" },
+            ],
+          },
+        ],
+      }))
+    : [
     {
       id: "dia1", label: "Dia 1", date: "15/Mar (Sex)", deliveries: [
         { category: "Grade Acadêmica", tasks: [
@@ -502,7 +578,7 @@ export default function TurmaCPanelPage() {
         ]},
       ],
     },
-  ];
+  ]);
 
   return (
     <AppLayout pageTitle="cPanel" pageSubtitle={`${programName} · ${siglaTurma}`}>
@@ -655,6 +731,69 @@ export default function TurmaCPanelPage() {
                 </div>
               );
             })}
+
+            {/* Add Day */}
+            {addDayOpen ? (
+              <div className="bg-card border border-dashed border-primary/40 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-foreground">Adicionar Dia de Aula</p>
+                <div className="flex gap-3 flex-wrap">
+                  <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                    <label className="text-xs text-muted-foreground font-medium">Rótulo</label>
+                    <input
+                      type="text"
+                      placeholder="ex: Dia 4"
+                      value={newDayLabel}
+                      onChange={(e) => setNewDayLabel(e.target.value)}
+                      className="text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                    <label className="text-xs text-muted-foreground font-medium">Data</label>
+                    <input
+                      type="text"
+                      placeholder="ex: 15/Abr (Ter)"
+                      value={newDayDate}
+                      onChange={(e) => setNewDayDate(e.target.value)}
+                      className="text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setAddDayOpen(false); setNewDayLabel(""); setNewDayDate(""); }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!newDayLabel.trim()}
+                    onClick={() => {
+                      setDayPackages((prev) => [
+                        ...prev,
+                        buildDayPackage({ label: newDayLabel.trim(), date: newDayDate.trim() || "—" }, prev.length),
+                      ]);
+                      setAddDayOpen(false);
+                      setNewDayLabel("");
+                      setNewDayDate("");
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddDayOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/30 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar Dia
+              </button>
+            )}
           </div>
         )}
 

@@ -11,6 +11,8 @@ import { DndContext, PointerSensor, type CollisionDetection, type DragEndEvent, 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+const MIN_EVENT_WIDTH = 130; // px — minimum width of a single-event day column
+const TIME_COL_W = 56;       // px — width of the time gutter column
 const SLOT_MINUTES = 30;
 const SLOTS_PER_HOUR = 60 / SLOT_MINUTES;
 const START_HOUR = HOURS[0];
@@ -652,6 +654,20 @@ export default function CalendarPage() {
   const conflictedEventIds = useMemo(() => getConflictedEventIds(events), [events]);
   const displayEvents = useMemo(() => withDerivedConflicts(visibleEvents, conflictedEventIds), [conflictedEventIds, visibleEvents]);
 
+  const { weekGridCols, weekTotalMinW } = useMemo(() => {
+    const colWidths = weekDays.slice(0, 7).reduce<Record<number, number>>((acc, day) => {
+      acc[day] = Math.max(1, ...HOURS.map(h =>
+        displayEvents.filter(e => e.day === day && e.startHour === h).length
+      ));
+      return acc;
+    }, {});
+    const gridCols = `${TIME_COL_W}px ${weekDays.slice(0, 7).map(d =>
+      `${(colWidths[d] ?? 1) * MIN_EVENT_WIDTH}px`
+    ).join(' ')}`;
+    const totalMinW = TIME_COL_W + weekDays.slice(0, 7).reduce((s, d) => s + (colWidths[d] ?? 1) * MIN_EVENT_WIDTH, 0);
+    return { weekGridCols: gridCols, weekTotalMinW: totalMinW };
+  }, [weekDays, displayEvents]);
+
   const handleAddSession = (ev: Omit<CalendarEvent, "id">) => {
     setEvents([...events, { ...ev, id: Date.now() }]);
     setShowNewSession(null);
@@ -922,11 +938,11 @@ export default function CalendarPage() {
                     />
                   </DndContext>
                 ) : (
-                  <div className="min-w-[700px]">
-                    <div className="grid grid-cols-8 border-b border-border bg-card sticky top-0 z-10">
-                      <div className="py-3 px-3 text-xs text-muted-foreground border-r border-border" />
+                  <div style={{ width: 'fit-content', minWidth: `${weekTotalMinW}px` }}>
+                    <div className="grid border-b border-border bg-card sticky top-0 z-20" style={{ gridTemplateColumns: weekGridCols }}>
+                      <div className="py-3 px-3 text-xs text-muted-foreground border-r border-border bg-card" />
                       {weekDays.slice(0, 7).map((day, i) => (
-                        <div key={day} className={cn("py-3 px-2 text-center border-r border-border last:border-r-0", day === 11 && "bg-primary/5")}>
+                        <div key={day} className="py-3 px-2 text-left border-r border-border last:border-r-0 bg-card">
                           <p className="text-xs text-muted-foreground">{DAYS[(i + 1) % DAYS.length]}</p>
                           <p className={cn("font-display font-bold text-base mt-0.5", day === 11 ? "text-primary" : "text-foreground")}>{day}</p>
                         </div>
@@ -934,7 +950,7 @@ export default function CalendarPage() {
                     </div>
                     <div className="relative">
                       {HOURS.map((hour) => (
-                        <div key={hour} className="grid grid-cols-8 border-b border-border/50 min-h-[56px]">
+                        <div key={hour} className="grid border-b border-border/50 min-h-[56px]" style={{ gridTemplateColumns: weekGridCols }}>
                           <div className="px-3 py-2 text-xs text-muted-foreground border-r border-border flex items-start pt-2">{hour}:00</div>
                           {weekDays.slice(0, 7).map((day) => {
                             const dayEvents = displayEvents.filter((e) => e.day === day && e.startHour === hour);
@@ -978,9 +994,9 @@ export default function CalendarPage() {
                   </DndContext>
                 ) : (
                   <div className="min-w-[320px]">
-                  <div className="grid grid-cols-2 border-b border-border bg-card sticky top-0 z-10">
-                    <div className="py-3 px-3 text-xs text-muted-foreground border-r border-border" />
-                    <div className="py-3 px-4 text-center">
+                  <div className="grid border-b border-border sticky top-0 z-20" style={{ gridTemplateColumns: '56px 1fr' }}>
+                    <div className="py-3 px-3 text-xs text-muted-foreground border-r border-border bg-card" />
+                    <div className="py-3 px-4 text-left bg-card">
                       <p className="text-xs text-muted-foreground">Seg</p>
                       <p className="font-display font-bold text-base text-primary">11</p>
                     </div>
@@ -988,7 +1004,7 @@ export default function CalendarPage() {
                   {HOURS.map((hour) => {
                     const dayEvents = displayEvents.filter((e) => e.day === 11 && e.startHour === hour);
                     return (
-                      <div key={hour} className="grid grid-cols-2 border-b border-border/50 min-h-[64px]">
+                      <div key={hour} className="grid border-b border-border/50 min-h-[64px]" style={{ gridTemplateColumns: '56px 1fr' }}>
                         <div className="px-3 py-2 text-xs text-muted-foreground border-r border-border">{hour}:00</div>
                         <div className="p-1 hover:bg-muted/20 cursor-pointer" onClick={() => setShowNewSession({ day: 11, hour })}>
                           {dayEvents.map((ev) => (

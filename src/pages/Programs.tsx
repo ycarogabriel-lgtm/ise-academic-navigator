@@ -39,6 +39,8 @@ interface Program {
   isTemplate?: boolean;
 }
 
+interface DeliveryDay { label: string; date: string }
+
 interface Turma {
   id: number; nomeTurma: string; siglaTurma: string;
   programaId: number; diretorPrograma: string;
@@ -54,6 +56,8 @@ interface Turma {
   estimativaAlunos?: number;
   status: "draft" | "active" | "awaiting_approval";
   sessoes: Sessao[];
+  deliveryDays?: DeliveryDay[];
+  hasCPanel?: boolean;
 }
 
 interface Sessao {
@@ -1079,7 +1083,7 @@ function TurmaEditModal({
 // ─── Program Detail Drawer ────────────────────────────────────────────────────
 
 function ProgramDetailDrawer({
-  program, programs, onClose, onEditProgram, onEditTurma, onNewTurma, onCPanel,
+  program, programs, onClose, onEditProgram, onEditTurma, onNewTurma, onTurmaDetail,
 }: {
   program: Program;
   programs: Program[];
@@ -1087,7 +1091,7 @@ function ProgramDetailDrawer({
   onEditProgram: () => void;
   onEditTurma: (turma: Turma) => void;
   onNewTurma: () => void;
-  onCPanel: (turma: Turma) => void;
+  onTurmaDetail: (turma: Turma) => void;
 }) {
   const s = statusConfig[program.status];
   const formatDate = (d?: Date) => d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "—";
@@ -1215,10 +1219,10 @@ function ProgramDetailDrawer({
                         </div>
                         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 shrink-0">
                           <button
-                            onClick={() => onCPanel(turma)}
+                            onClick={() => onTurmaDetail(turma)}
                             className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-primary/30 rounded-lg text-primary hover:bg-primary/10 transition-colors"
                           >
-                            <ClipboardList className="w-3 h-3" /> cPanel
+                            <CalendarLucide className="w-3 h-3" /> Dias de Entrega
                           </button>
                           <button
                             onClick={() => onEditTurma(turma)}
@@ -1431,10 +1435,12 @@ function TurmaCard({ turma, program, viewMode = "grid", onClick }: { turma: Turm
 // ─── Turma Detail Drawer ──────────────────────────────────────────────────────
 
 function TurmaDetailDrawer({
-  turma, program, onClose, onEdit, onCPanel,
+  turma, program, onClose, onEdit, onGenerateCPanel, onViewCPanel,
 }: {
   turma: Turma; program: Program;
-  onClose: () => void; onEdit: () => void; onCPanel: () => void;
+  onClose: () => void; onEdit: () => void;
+  onGenerateCPanel: (days: DeliveryDay[]) => void;
+  onViewCPanel: () => void;
 }) {
   const ts = turmaStatusConfig[turma.status] || turmaStatusConfig.draft;
   const fmt = (d?: Date) => d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "—";
@@ -1442,128 +1448,272 @@ function TurmaDetailDrawer({
   const allocatedSessoes = turma.sessoes?.filter((s) => s.dia !== undefined).length ?? 0;
   const allocPct = totalSessoes > 0 ? Math.round((allocatedSessoes / totalSessoes) * 100) : 0;
 
+  const [drawerView, setDrawerView] = useState<"main" | "delivery">("main");
+
+  interface DayEntry { id: string; date: string }
+  const [dayEntries, setDayEntries] = useState<DayEntry[]>(
+    turma.deliveryDays?.length
+      ? turma.deliveryDays.map((d, i) => ({ id: String(i), date: d.date }))
+      : [{ id: "1", date: "" }]
+  );
+
+  const addDayEntry = () => setDayEntries((p) => [...p, { id: String(Date.now()), date: "" }]);
+  const removeDayEntry = (id: string) => setDayEntries((p) => p.filter((d) => d.id !== id));
+  const updateDayEntry = (id: string, date: string) =>
+    setDayEntries((p) => p.map((d) => (d.id === id ? { ...d, date } : d)));
+
+  const formatDeliveryDate = (isoDate: string): string => {
+    try {
+      const [year, month, day] = isoDate.split("-");
+      const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+      const dayStr = format(dateObj, "dd");
+      const monthStr = format(dateObj, "MMM", { locale: ptBR });
+      const weekday = format(dateObj, "EEE", { locale: ptBR });
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(".", "");
+      return `${dayStr}/${cap(monthStr)} (${cap(weekday)})`;
+    } catch {
+      return isoDate;
+    }
+  };
+
+  const validDays = dayEntries.filter((d) => d.date !== "");
+  const canGenerate = validDays.length > 0;
+
+  const handleGenerate = () => {
+    const days: DeliveryDay[] = validDays.map((d, i) => ({
+      label: `Dia ${i + 1}`,
+      date: formatDeliveryDate(d.date),
+    }));
+    onGenerateCPanel(days);
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
       <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-card border-l border-border shadow-2xl flex flex-col animate-slide-in-right">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-border">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Layers className="w-5 h-5 text-primary shrink-0" />
-              <div className="min-w-0">
-                <h2 className="font-bold text-foreground text-base leading-tight truncate">{turma.nomeTurma}</h2>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs font-mono text-muted-foreground">{turma.siglaTurma}</span>
-                  <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", ts.class)}>{ts.label}</span>
-                  {turma.modalidade && (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
-                      {MODALIDADES.find((m) => m.value === turma.modalidade)?.label}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={onEdit}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors text-foreground">
-                <Pencil className="w-3.5 h-3.5" /> Editar
-              </button>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          {/* Programa */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Programa</p>
-            <div className="divide-y divide-border/50">
-              <InfoRow label="Nome" value={program.name} icon={<GraduationCap className="w-4 h-4" />} />
-              <InfoRow label="Sigla" value={program.sigla} icon={<Hash className="w-4 h-4" />} />
-              <InfoRow label="Cliente" value={program.cliente} icon={<Briefcase className="w-4 h-4" />} />
-              <InfoRow label="Instituto" value={program.instituto} icon={<Building2 className="w-4 h-4" />} />
-            </div>
-          </div>
-
-          {/* Responsáveis */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Responsáveis</p>
-            <div className="divide-y divide-border/50">
-              <InfoRow label="Diretor(a) de Programa" value={turma.diretorPrograma} icon={<UserCheck className="w-4 h-4" />} />
-              <InfoRow label="Diretor(a) Acadêmico" value={turma.diretorAcademico} icon={<BookOpen className="w-4 h-4" />} />
-              <InfoRow label="Coordenador(a)" value={turma.coordenador} icon={<Users className="w-4 h-4" />} />
-              <InfoRow label="Planejamento" value={turma.planejamento} icon={<ClipboardList className="w-4 h-4" />} />
-              <InfoRow label="Produção de Materiais" value={turma.producaoMateriais} icon={<FileText className="w-4 h-4" />} />
-            </div>
-          </div>
-
-          {/* Estrutura */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Estrutura</p>
-            <div className="divide-y divide-border/50">
-              <InfoRow label="Modalidade" value={MODALIDADES.find((m) => m.value === turma.modalidade)?.label} icon={<CalendarLucide className="w-4 h-4" />} />
-              <InfoRow label="Local" value={LOCAIS.find((l) => l.value === turma.local)?.label} icon={<MapPin className="w-4 h-4" />} />
-              <InfoRow label="Período" value={turma.periodoStart ? `${fmt(turma.periodoStart)} – ${fmt(turma.periodoEnd)}` : undefined} icon={<CalendarIcon className="w-4 h-4" />} />
-              <InfoRow label="Nº participantes" value={turma.numParticipantes?.toString()} icon={<Users className="w-4 h-4" />} />
-              <InfoRow label="Código financeiro" value={turma.codigoFinanceiro} icon={<DollarSign className="w-4 h-4" />} />
-            </div>
-          </div>
-
-          {/* Sessões + alocação */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Sessões{totalSessoes > 0 ? ` (${totalSessoes})` : ""}
-            </p>
-            {totalSessoes > 0 ? (
-              <div className="bg-muted/30 rounded-xl border border-border p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-muted-foreground">Alocação de recursos</p>
-                  <p className="text-xs font-medium text-foreground">{allocatedSessoes}/{totalSessoes}</p>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : allocPct > 50 ? "bg-primary" : "bg-warning")}
-                    style={{ width: `${allocPct}%` }} />
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  {turma.sessoes.slice(0, 4).map((s) => (
-                    <div key={s.id} className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-muted-foreground w-8 shrink-0">{s.slot}</span>
-                      <span className="text-xs text-foreground truncate flex-1">{s.titulo || s.tema}</span>
-                      {s.dia !== undefined ? (
-                        <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
-                      ) : (
-                        <Circle className="w-3 h-3 text-muted-foreground shrink-0" />
+        {/* ── Main view ── */}
+        {drawerView === "main" && (
+          <>
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-border">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Layers className="w-5 h-5 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-foreground text-base leading-tight truncate">{turma.nomeTurma}</h2>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-xs font-mono text-muted-foreground">{turma.siglaTurma}</span>
+                      <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", ts.class)}>{ts.label}</span>
+                      {turma.modalidade && (
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                          {MODALIDADES.find((m) => m.value === turma.modalidade)?.label}
+                        </span>
                       )}
                     </div>
-                  ))}
-                  {turma.sessoes.length > 4 && (
-                    <p className="text-xs text-muted-foreground">+{turma.sessoes.length - 4} sessões</p>
-                  )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={onEdit}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors text-foreground">
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="bg-muted/20 border border-dashed border-border rounded-xl py-6 text-center">
-                <p className="text-xs text-muted-foreground">Nenhuma sessão configurada</p>
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-card/80 flex items-center gap-2">
-          <button onClick={onCPanel}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary/30 text-primary rounded-lg hover:bg-primary/5 transition-colors">
-            <ClipboardList className="w-4 h-4" /> Abrir cPanel
-          </button>
-          <button onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-            <Pencil className="w-4 h-4" /> Editar turma
-          </button>
-        </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {/* Programa */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Programa</p>
+                <div className="divide-y divide-border/50">
+                  <InfoRow label="Nome" value={program.name} icon={<GraduationCap className="w-4 h-4" />} />
+                  <InfoRow label="Sigla" value={program.sigla} icon={<Hash className="w-4 h-4" />} />
+                  <InfoRow label="Cliente" value={program.cliente} icon={<Briefcase className="w-4 h-4" />} />
+                  <InfoRow label="Instituto" value={program.instituto} icon={<Building2 className="w-4 h-4" />} />
+                </div>
+              </div>
+
+              {/* Responsáveis */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Responsáveis</p>
+                <div className="divide-y divide-border/50">
+                  <InfoRow label="Diretor(a) de Programa" value={turma.diretorPrograma} icon={<UserCheck className="w-4 h-4" />} />
+                  <InfoRow label="Diretor(a) Acadêmico" value={turma.diretorAcademico} icon={<BookOpen className="w-4 h-4" />} />
+                  <InfoRow label="Coordenador(a)" value={turma.coordenador} icon={<Users className="w-4 h-4" />} />
+                  <InfoRow label="Planejamento" value={turma.planejamento} icon={<ClipboardList className="w-4 h-4" />} />
+                  <InfoRow label="Produção de Materiais" value={turma.producaoMateriais} icon={<FileText className="w-4 h-4" />} />
+                </div>
+              </div>
+
+              {/* Estrutura */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Estrutura</p>
+                <div className="divide-y divide-border/50">
+                  <InfoRow label="Modalidade" value={MODALIDADES.find((m) => m.value === turma.modalidade)?.label} icon={<CalendarLucide className="w-4 h-4" />} />
+                  <InfoRow label="Local" value={LOCAIS.find((l) => l.value === turma.local)?.label} icon={<MapPin className="w-4 h-4" />} />
+                  <InfoRow label="Período" value={turma.periodoStart ? `${fmt(turma.periodoStart)} – ${fmt(turma.periodoEnd)}` : undefined} icon={<CalendarIcon className="w-4 h-4" />} />
+                  <InfoRow label="Nº participantes" value={turma.numParticipantes?.toString()} icon={<Users className="w-4 h-4" />} />
+                  <InfoRow label="Código financeiro" value={turma.codigoFinanceiro} icon={<DollarSign className="w-4 h-4" />} />
+                </div>
+              </div>
+
+              {/* Dias de Entrega (summary, se já configurados) */}
+              {turma.deliveryDays && turma.deliveryDays.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Dias de Entrega</p>
+                  <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-1.5">
+                    {turma.deliveryDays.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-primary w-10 shrink-0">{d.label}</span>
+                        <span className="text-xs text-foreground">{d.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sessões */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Sessões{totalSessoes > 0 ? ` (${totalSessoes})` : ""}
+                </p>
+                {totalSessoes > 0 ? (
+                  <div className="bg-muted/30 rounded-xl border border-border p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-muted-foreground">Alocação de recursos</p>
+                      <p className="text-xs font-medium text-foreground">{allocatedSessoes}/{totalSessoes}</p>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : allocPct > 50 ? "bg-primary" : "bg-warning")}
+                        style={{ width: `${allocPct}%` }} />
+                    </div>
+                    <div className="mt-3 space-y-1.5">
+                      {turma.sessoes.slice(0, 4).map((s) => (
+                        <div key={s.id} className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-muted-foreground w-8 shrink-0">{s.slot}</span>
+                          <span className="text-xs text-foreground truncate flex-1">{s.titulo || s.tema}</span>
+                          {s.dia !== undefined ? (
+                            <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
+                          ) : (
+                            <Circle className="w-3 h-3 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                      {turma.sessoes.length > 4 && (
+                        <p className="text-xs text-muted-foreground">+{turma.sessoes.length - 4} sessões</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-muted/20 border border-dashed border-border rounded-xl py-6 text-center">
+                    <p className="text-xs text-muted-foreground">Nenhuma sessão configurada</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-border bg-card/80 flex items-center gap-2">
+              {turma.hasCPanel ? (
+                <button onClick={onViewCPanel}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary/30 text-primary rounded-lg hover:bg-primary/5 transition-colors">
+                  <ClipboardList className="w-4 h-4" /> Ver cPanel
+                </button>
+              ) : (
+                <button onClick={() => setDrawerView("delivery")}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary/30 text-primary rounded-lg hover:bg-primary/5 transition-colors">
+                  <CalendarLucide className="w-4 h-4" /> Dias de Entrega
+                </button>
+              )}
+              <button onClick={onEdit}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+                <Pencil className="w-4 h-4" /> Editar turma
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Delivery days sub-view ── */}
+        {drawerView === "delivery" && (
+          <>
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-border">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setDrawerView("main")}
+                  className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-2 min-w-0">
+                  <CalendarLucide className="w-4 h-4 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-foreground text-base leading-tight">Dias de Entrega</h2>
+                    <p className="text-muted-foreground text-xs truncate">{turma.nomeTurma} · {turma.siglaTurma}</p>
+                  </div>
+                </div>
+                <button onClick={onClose} className="ml-auto p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground shrink-0">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <p className="text-sm text-foreground font-medium mb-1">Configure os dias de aula</p>
+                <p className="text-xs text-muted-foreground">
+                  Adicione as datas de cada dia de aula. O cPanel será gerado automaticamente com as entregas organizadas por dia.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {dayEntries.map((entry, index) => (
+                  <div key={entry.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-4">
+                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{index + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Dia {index + 1}</p>
+                      <input
+                        type="date"
+                        value={entry.date}
+                        onChange={(e) => updateDayEntry(entry.id, e.target.value)}
+                        className="w-full text-sm border border-border rounded-lg px-3 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    {dayEntries.length > 1 && (
+                      <button onClick={() => removeDayEntry(entry.id)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={addDayEntry}
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
+                <Plus className="w-4 h-4" /> Adicionar dia
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-border bg-card/80 flex items-center gap-2">
+              <button onClick={() => setDrawerView("main")}
+                className="px-4 py-2 text-sm border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                Voltar
+              </button>
+              <button onClick={handleGenerate} disabled={!canGenerate}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <ClipboardList className="w-4 h-4" /> Gerar cPanel
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -2181,13 +2331,10 @@ export default function Programs() {
           onEditProgram={() => openEditProgram(selectedProgram)}
           onEditTurma={(turma) => openEditTurma(turma, selectedProgram.id)}
           onNewTurma={() => openNewTurma(selectedProgram.id)}
-          onCPanel={(turma) => navigate("/programs/turma/cpanel", {
-            state: {
-              turmaName: turma.nomeTurma,
-              programName: selectedProgram.name,
-              siglaTurma: turma.siglaTurma,
-            },
-          })}
+          onTurmaDetail={(turma) => {
+            setSelectedProgram(null);
+            setSelectedTurma({ turma, program: selectedProgram });
+          }}
         />
       )}
       {selectedTurma && (
@@ -2196,13 +2343,37 @@ export default function Programs() {
           program={selectedTurma.program}
           onClose={() => setSelectedTurma(null)}
           onEdit={() => { openEditTurma(selectedTurma.turma, selectedTurma.program.id); setSelectedTurma(null); }}
-          onCPanel={() => navigate("/programs/turma/cpanel", {
-            state: {
-              turmaName: selectedTurma.turma.nomeTurma,
-              programName: selectedTurma.program.name,
-              siglaTurma: selectedTurma.turma.siglaTurma,
-            },
-          })}
+          onGenerateCPanel={(days) => {
+            // Persist delivery days + hasCPanel on the turma
+            setPrograms((prev) =>
+              prev.map((p) => ({
+                ...p,
+                turmas: p.turmas?.map((t) =>
+                  t.id === selectedTurma.turma.id
+                    ? { ...t, deliveryDays: days, hasCPanel: true }
+                    : t
+                ),
+              }))
+            );
+            navigate("/programs/turma/cpanel", {
+              state: {
+                turmaName: selectedTurma.turma.nomeTurma,
+                programName: selectedTurma.program.name,
+                siglaTurma: selectedTurma.turma.siglaTurma,
+                deliveryDays: days,
+              },
+            });
+          }}
+          onViewCPanel={() =>
+            navigate("/programs/turma/cpanel", {
+              state: {
+                turmaName: selectedTurma.turma.nomeTurma,
+                programName: selectedTurma.program.name,
+                siglaTurma: selectedTurma.turma.siglaTurma,
+                deliveryDays: selectedTurma.turma.deliveryDays,
+              },
+            })
+          }
         />
       )}
 
