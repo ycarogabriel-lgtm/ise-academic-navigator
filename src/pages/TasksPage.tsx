@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   Search,
@@ -359,8 +360,10 @@ const tabOptions: { key: TabFilter; label: string }[] = [
 // ── Task Detail Panel ─────────────────────────────────────────────────────────
 
 function TaskDetailPanel({ task, onClose, onStatusChange }: { task: Task; onClose: () => void; onStatusChange: (id: number, status: TaskStatus) => void }) {
+  const navigate = useNavigate();
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState<TaskComment[]>(task.comments);
+  const isConflict = task.title.toLowerCase().includes("conflito");
   const cfg = statusConfig[task.status];
   const pri = priorityConfig[task.priority];
 
@@ -586,6 +589,19 @@ function TaskDetailPanel({ task, onClose, onStatusChange }: { task: Task; onClos
             </div>
           </section>
         </div>
+
+        {/* ── Footer: Solucionar conflito ──────────────────────────── */}
+        {isConflict && (
+          <div className="px-6 py-4 border-t border-border">
+            <button
+              onClick={() => navigate("/calendar", { state: { resourceKind: "professors", filterStatus: "Conflito" } })}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Solucionar conflito
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

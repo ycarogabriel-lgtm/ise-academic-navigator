@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Check, ChevronLeft, ChevronRight, Plus, X, Save, AlertTriangle, Trash2, BookOpen, Clock, MapPin, User, GraduationCap, Tag, Layers, PanelRightClose, PanelRightOpen, BarChart3, FileDown, Ban, CalendarPlus, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
