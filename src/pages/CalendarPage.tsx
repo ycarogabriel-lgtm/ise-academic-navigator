@@ -2045,11 +2045,10 @@ function RightInsightsPanel({
             const isToday = d === 11;
             return (
               <div key={d}
-                onClick={() => { if (view === "day") { onSelectDay(d); onChangeView("day"); } }}
+                onClick={() => onSelectDay(d)}
                 className={cn(
-                  "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer hover:bg-muted",
+                  "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer transition-colors hover:bg-primary/20",
                   isToday && "bg-primary text-primary-foreground font-bold hover:bg-primary",
-                  view === "day" && !isToday && "hover:bg-primary/20",
                 )}>{d}</div>
             );
           })}

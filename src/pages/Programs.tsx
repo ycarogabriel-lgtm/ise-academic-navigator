@@ -7,7 +7,7 @@ import {
   AlertCircle, CheckCircle2, Clock, ChevronDown, Hash, Sparkles,
   ArrowRight, FlaskConical, Send, Save, FileText, MapPin, BookMarked,
   ChevronLeft, Calendar as CalendarLucide, Tag, DollarSign, Globe,
-  Briefcase, UserCheck, Cpu, LayoutGrid, List, Circle
+  Briefcase, UserCheck, Cpu, LayoutGrid, List, Circle, Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -1503,39 +1503,76 @@ function TurmaDetailDrawer({
 
   const [drawerView, setDrawerView] = useState<"main" | "delivery">("main");
 
-  interface DayEntry { id: string; date: string }
+  const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const DAYS_HDR = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  interface DayEntry { id: string; year: number; month: number; day: number; label: string; }
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
   const [dayEntries, setDayEntries] = useState<DayEntry[]>(
     turma.deliveryDays?.length
-      ? turma.deliveryDays.map((d, i) => ({ id: String(i), date: d.date }))
-      : [{ id: "1", date: "" }]
+      ? turma.deliveryDays.map((d, i) => {
+          const match = d.date.match(/(\d+)\/(\w+)/);
+          return { id: String(i), year: today.getFullYear(), month: i, day: match ? parseInt(match[1]) : i + 1, label: d.label || `Dia ${i + 1}` };
+        })
+      : []
   );
 
-  const addDayEntry = () => setDayEntries((p) => [...p, { id: String(Date.now()), date: "" }]);
-  const removeDayEntry = (id: string) => setDayEntries((p) => p.filter((d) => d.id !== id));
-  const updateDayEntry = (id: string, date: string) =>
-    setDayEntries((p) => p.map((d) => (d.id === id ? { ...d, date } : d)));
-
-  const formatDeliveryDate = (isoDate: string): string => {
-    try {
-      const [year, month, day] = isoDate.split("-");
-      const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
-      const dayStr = format(dateObj, "dd");
-      const monthStr = format(dateObj, "MMM", { locale: ptBR });
-      const weekday = format(dateObj, "EEE", { locale: ptBR });
+  const isoKey = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
+  const isDaySelected = (y: number, m: number, d: number) => dayEntries.some((e) => e.year === y && e.month === m && e.day === d);
+  const toggleCalDay = (d: number) => {
+    const y = calYear; const m = calMonth;
+    if (isDaySelected(y, m, d)) {
+      setDayEntries((prev) => prev.filter((e) => !(e.year === y && e.month === m && e.day === d)));
+    } else {
+      const weekday = new Date(y, m, d).toLocaleDateString("pt-BR", { weekday: "short" });
       const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(".", "");
-      return `${dayStr}/${cap(monthStr)} (${cap(weekday)})`;
-    } catch {
-      return isoDate;
+      const label = `${String(d).padStart(2,"0")}/${MONTHS_PT[m].slice(0,3)} (${cap(weekday)})`;
+      setDayEntries((prev) =>
+        [...prev, { id: isoKey(y, m, d), year: y, month: m, day: d, label }]
+          .sort((a, b) => isoKey(a.year, a.month, a.day).localeCompare(isoKey(b.year, b.month, b.day)))
+      );
     }
   };
+  const removeDayEntry = (id: string) => setDayEntries((p) => p.filter((d) => d.id !== id));
+  const updateDayEntry = (id: string, label: string) => setDayEntries((p) => p.map((d) => (d.id === id ? { ...d, label } : d)));
 
-  const validDays = dayEntries.filter((d) => d.date !== "");
+  const formatDeliveryDate = (y: number, m: number, d: number): string => {
+    const weekday = new Date(y, m, d).toLocaleDateString("pt-BR", { weekday: "short" });
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(".", "");
+    return `${String(d).padStart(2, "0")}/${MONTHS_PT[m].slice(0,3)} (${cap(weekday)})`;
+  };
+
+  const validDays = dayEntries;
   const canGenerate = validDays.length > 0;
 
+  const [manualForm, setManualForm] = useState({ open: false, day: "", month: "", year: String(today.getFullYear()) });
+
+  const handleManualAdd = () => {
+    const d = parseInt(manualForm.day);
+    const m = parseInt(manualForm.month) - 1;
+    const y = parseInt(manualForm.year);
+    if (!manualForm.day || !manualForm.month || !manualForm.year) return;
+    if (isNaN(d) || isNaN(m) || isNaN(y)) return;
+    if (d < 1 || d > 31 || m < 0 || m > 11 || y < 2000 || y > 2099) return;
+    const date = new Date(y, m, d);
+    if (date.getMonth() !== m || date.getDate() !== d) return;
+    if (!isDaySelected(y, m, d)) {
+      const weekday = new Date(y, m, d).toLocaleDateString("pt-BR", { weekday: "short" });
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(".", "");
+      const label = `${String(d).padStart(2,"0")}/${MONTHS_PT[m].slice(0,3)} (${cap(weekday)})`;
+      setDayEntries((prev) =>
+        [...prev, { id: isoKey(y, m, d), year: y, month: m, day: d, label }]
+          .sort((a, b) => isoKey(a.year, a.month, a.day).localeCompare(isoKey(b.year, b.month, b.day)))
+      );
+    }
+    setManualForm({ open: false, day: "", month: "", year: String(calYear) });
+  };
+
   const handleGenerate = () => {
-    const days: DeliveryDay[] = validDays.map((d, i) => ({
-      label: `Dia ${i + 1}`,
-      date: formatDeliveryDate(d.date),
+    const days: DeliveryDay[] = validDays.map((d) => ({
+      label: d.label,
+      date: formatDeliveryDate(d.year, d.month, d.day),
     }));
     onGenerateCPanel(days);
   };
@@ -1717,41 +1754,113 @@ function TurmaDetailDrawer({
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-                <p className="text-sm text-foreground font-medium mb-1">Configure os dias de aula</p>
-                <p className="text-xs text-muted-foreground">
-                  Adicione as datas de cada dia de aula. O cPanel será gerado automaticamente com as entregas organizadas por dia.
-                </p>
+                <p className="text-sm text-foreground font-medium mb-1">Selecione os dias de aula</p>
+                <p className="text-xs text-muted-foreground">Clique nos dias do calendário. Você também pode adicioná-los manualmente.</p>
               </div>
 
-              <div className="space-y-3">
-                {dayEntries.map((entry, index) => (
-                  <div key={entry.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-4">
-                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{index + 1}</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Dia {index + 1}</p>
-                      <input
-                        type="date"
-                        value={entry.date}
-                        onChange={(e) => updateDayEntry(entry.id, e.target.value)}
-                        className="w-full text-sm border border-border rounded-lg px-3 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                    </div>
-                    {dayEntries.length > 1 && (
-                      <button onClick={() => removeDayEntry(entry.id)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+              {/* Calendar picker */}
+              <div className="bg-background border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                  <button
+                    onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); } else { setCalMonth((m) => m - 1); } }}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                  <p className="text-xs font-semibold text-foreground">{MONTHS_PT[calMonth]} {calYear}</p>
+                  <button
+                    onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); } else { setCalMonth((m) => m + 1); } }}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground"><ChevronRight className="w-3.5 h-3.5" /></button>
+                </div>
+                <div className="p-3">
+                  <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
+                    {DAYS_HDR.map((d) => <div key={d} className="text-[10px] font-semibold text-muted-foreground py-1">{d}</div>)}
                   </div>
-                ))}
+                  <div className="grid grid-cols-7 gap-0.5 text-center">
+                    {Array.from({ length: new Date(calYear, calMonth, 1).getDay() }).map((_, i) => <div key={`e-${i}`} />)}
+                    {Array.from({ length: new Date(calYear, calMonth + 1, 0).getDate() }).map((_, i) => {
+                      const d = i + 1;
+                      const selected = isDaySelected(calYear, calMonth, d);
+                      return (
+                        <button key={d} onClick={() => toggleCalDay(d)}
+                          className={cn("h-8 w-full rounded-md text-xs font-medium transition-colors",
+                            selected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground hover:bg-muted"
+                          )}>{d}</button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
-              <button onClick={addDayEntry}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
-                <Plus className="w-4 h-4" /> Adicionar dia
-              </button>
+              {/* Selected days */}
+              {dayEntries.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-foreground">Dias selecionados ({dayEntries.length})</p>
+                  {dayEntries.map((entry, index) => (
+                    <div key={entry.id} className="flex items-center gap-3 bg-card border border-border rounded-xl px-3 py-2.5">
+                      <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-primary">{index + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={entry.label}
+                          onChange={(e) => updateDayEntry(entry.id, e.target.value)}
+                          placeholder="Rótulo do dia"
+                          className="w-full text-sm bg-transparent text-foreground focus:outline-none placeholder:text-muted-foreground/50"
+                        />
+                        <p className="text-[10px] text-muted-foreground">{String(entry.day).padStart(2,"0")} de {MONTHS_PT[entry.month]} de {entry.year}</p>
+                      </div>
+                      <button onClick={() => removeDayEntry(entry.id)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {manualForm.open ? (
+                <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-1 flex-1 flex-wrap">
+                    <input
+                      type="number" min={1} max={31} placeholder="Dia"
+                      value={manualForm.day}
+                      onChange={(e) => setManualForm((f) => ({ ...f, day: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+                      className="w-12 text-sm text-center border border-border rounded-md px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                    <span className="text-muted-foreground text-xs">/</span>
+                    <input
+                      type="number" min={1} max={12} placeholder="Mês"
+                      value={manualForm.month}
+                      onChange={(e) => setManualForm((f) => ({ ...f, month: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+                      className="w-12 text-sm text-center border border-border rounded-md px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <span className="text-muted-foreground text-xs">/</span>
+                    <input
+                      type="number" min={2000} max={2099} placeholder="Ano"
+                      value={manualForm.year}
+                      onChange={(e) => setManualForm((f) => ({ ...f, year: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
+                      className="w-16 text-sm text-center border border-border rounded-md px-1 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <button onClick={handleManualAdd}
+                    className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setManualForm({ open: false, day: "", month: "", year: String(calYear) })}
+                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setManualForm({ open: true, day: "", month: "", year: String(calYear) })}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
+                  <Plus className="w-4 h-4" /> Adicionar dia manualmente
+                </button>
+              )}
             </div>
 
             {/* Footer */}
