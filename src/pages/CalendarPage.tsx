@@ -577,11 +577,13 @@ function EventDetailsModal({ event, onSave, onDelete, onClose }: {
   );
 }
 
-type CalendarView = "day" | "week" | "month" | "year";
+type CalendarView = "day" | "week" | "month" | "quarter" | "semester" | "year";
 
 export default function CalendarPage() {
-  const [year] = useState(2024);
+  const [year, setYear] = useState(2024);
   const [month, setMonth] = useState(2);
+  const [currentDay, setCurrentDay] = useState(11);
+  const [weekStart, setWeekStart] = useState(11);
   const [view, setView] = useState<CalendarView>("week");
   const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
   const [showNewSession, setShowNewSession] = useState<{ day?: number; hour?: number } | null>(null);
@@ -611,7 +613,11 @@ export default function CalendarPage() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const weekDays = selectedDays.length ? selectedDays : [11];
+  const weekDays = view === "week"
+    ? Array.from({ length: 7 }, (_, i) => weekStart + i).filter((d) => d >= 1 && d <= new Date(year, month + 1, 0).getDate())
+    : view === "day"
+    ? [currentDay]
+    : selectedDays.length ? selectedDays : [11];
 
   const sidebarRooms = useMemo(() => {
     if (filterRoomCategory === "plenaria") return PLENARIAS;
@@ -760,8 +766,69 @@ export default function CalendarPage() {
     toast({ title: "Relatório exportado.", description: `${visibleEvents.length} sessões conforme filtros atuais.`, className: "top-center-toast bg-success text-success-foreground border-success" });
   };
 
-  const viewLabels: Record<CalendarView, string> = { day: "Dia", week: "Semana", month: "Mês", year: "Ano" };
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const viewLabels: Record<CalendarView, string> = { day: "Dia", week: "Semana", month: "Mês", quarter: "Trimestre", semester: "Semestre", year: "Ano" };
+  const quarterStart = Math.floor(month / 3) * 3;
+  const semesterStart = Math.floor(month / 6) * 6;
+  const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+  const weekEnd = Math.min(weekStart + 6, daysInCurrentMonth);
+  const periodLabel = view === "day"
+    ? `${currentDay} de ${MONTHS[month]} ${year}`
+    : view === "week"
+    ? `${weekStart} – ${weekEnd} de ${MONTHS[month]} ${year}`
+    : view === "quarter"
+    ? `${MONTHS[quarterStart]} – ${MONTHS[quarterStart + 2]} ${year}`
+    : view === "semester"
+    ? `${MONTHS[semesterStart]} – ${MONTHS[semesterStart + 5]} ${year}`
+    : view === "year"
+    ? `${year}`
+    : `${MONTHS[month]} ${year}`;
+
+  const handlePrev = () => {
+    if (view === "day") {
+      if (currentDay > 1) { setCurrentDay((d) => d - 1); }
+      else if (month > 0) { setMonth((m) => m - 1); setCurrentDay(new Date(year, month, 0).getDate()); }
+    } else if (view === "week") {
+      if (weekStart > 7) { setWeekStart((w) => w - 7); }
+      else if (month > 0) { setMonth((m) => m - 1); const dim = new Date(year, month, 0).getDate(); setWeekStart(Math.max(1, dim - 6)); }
+    } else if (view === "quarter") {
+      const newMonth = month - 3;
+      if (newMonth < 0) return;
+      setMonth(newMonth);
+    } else if (view === "semester") {
+      const newMonth = month - 6;
+      if (newMonth < 0) return;
+      setMonth(newMonth);
+    } else if (view === "year") {
+      setYear((y) => y - 1);
+    } else {
+      setMonth((m) => Math.max(0, m - 1));
+    }
+  };
+
+  const handleNext = () => {
+    if (view === "day") {
+      const dim = new Date(year, month + 1, 0).getDate();
+      if (currentDay < dim) { setCurrentDay((d) => d + 1); }
+      else if (month < 11) { setMonth((m) => m + 1); setCurrentDay(1); }
+    } else if (view === "week") {
+      const dim = new Date(year, month + 1, 0).getDate();
+      if (weekStart + 7 <= dim) { setWeekStart((w) => w + 7); }
+      else if (month < 11) { setMonth((m) => m + 1); setWeekStart(1); }
+    } else if (view === "quarter") {
+      const newMonth = month + 3;
+      if (newMonth > 11) return;
+      setMonth(newMonth);
+    } else if (view === "semester") {
+      const newMonth = month + 6;
+      if (newMonth > 11) return;
+      setMonth(newMonth);
+    } else if (view === "year") {
+      setYear((y) => y + 1);
+    } else {
+      setMonth((m) => Math.min(11, m + 1));
+    }
+  };
+  const daysInMonth = daysInCurrentMonth;
   const firstDayOfMonth = new Date(year, month, 1).getDay();
 
   return (
@@ -771,18 +838,16 @@ export default function CalendarPage() {
           {/* Toolbar */}
           <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-              <button onClick={() => setMonth((m) => Math.max(0, m - 1))} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground">
+              <button onClick={handlePrev} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <h2 className="font-display font-bold text-foreground text-sm min-w-32 text-center">{MONTHS[month]} {year}</h2>
-              <button onClick={() => setMonth((m) => Math.min(11, m + 1))} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground">
+              <h2 className="font-display font-bold text-foreground text-sm min-w-32 text-center">{periodLabel}</h2>
+              <button onClick={handleNext} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground">
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button className="text-xs text-primary font-medium border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5">Hoje</button>
-            </div>
-            <div className="flex items-center gap-2">
               <div className="flex items-center border border-border rounded-lg overflow-hidden">
-                {(["day", "week", "month", "year"] as CalendarView[]).map((v) => (
+                {(["day", "week", "month", "quarter", "semester", "year"] as CalendarView[]).map((v) => (
                   <button key={v} onClick={() => setView(v)}
                     className={cn("text-xs px-3 py-1.5 font-medium transition-colors",
                       view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
@@ -790,6 +855,8 @@ export default function CalendarPage() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="flex items-center border border-border rounded-lg overflow-hidden">
                 <button onClick={() => setAxisOrientation("resources")}
                   className={cn("text-xs px-3 py-1.5 font-medium transition-colors", axisOrientation === "resources" ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-muted")}>Recursos x horários</button>
@@ -836,16 +903,18 @@ export default function CalendarPage() {
               </select>
             </FilterChip>
 
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1">
-              <span className="text-xs text-muted-foreground">Dias:</span>
-              {SELECTABLE_DAYS.map((day) => (
-                <button key={day} onClick={() => updateDaySelection(day)}
-                  className={cn("h-6 min-w-7 rounded-md px-1.5 text-xs font-medium transition-colors", selectedDays.includes(day) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
-                  aria-pressed={selectedDays.includes(day)}>
-                  {day}
-                </button>
-              ))}
-            </div>
+            {view === "week" && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1">
+                <span className="text-xs text-muted-foreground">Dias:</span>
+                {SELECTABLE_DAYS.map((day) => (
+                  <button key={day} onClick={() => updateDaySelection(day)}
+                    className={cn("h-6 min-w-7 rounded-md px-1.5 text-xs font-medium transition-colors", selectedDays.includes(day) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+                    aria-pressed={selectedDays.includes(day)}>
+                    {day}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Tipo */}
             <FilterChip label="Tipo" value={FILTER_BY_TYPES.find((t) => t.key === filterBy)?.label ?? "Tipo"} active>
@@ -981,7 +1050,7 @@ export default function CalendarPage() {
                 axisOrientation === "resources" ? (
                   <DndContext sensors={dndSensors} collisionDetection={startReferenceCollisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
                     <ResourceTimelineGrid
-                      days={[weekDays[0] ?? 11]}
+                      days={[currentDay]}
                       resources={visibleResources}
                       resourceKind={resourceKind}
                       showMode={showMode}
@@ -997,16 +1066,16 @@ export default function CalendarPage() {
                   <div className="grid border-b border-border sticky top-0 z-20" style={{ gridTemplateColumns: '56px 1fr' }}>
                     <div className="py-3 px-3 text-xs text-muted-foreground border-r border-border bg-card" />
                     <div className="py-3 px-4 text-left bg-card">
-                      <p className="text-xs text-muted-foreground">Seg</p>
-                      <p className="font-display font-bold text-base text-primary">11</p>
+                      <p className="text-xs text-muted-foreground">{DAYS[new Date(year, month, currentDay).getDay()]}</p>
+                      <p className="font-display font-bold text-base text-primary">{currentDay}</p>
                     </div>
                   </div>
                   {HOURS.map((hour) => {
-                    const dayEvents = displayEvents.filter((e) => e.day === 11 && e.startHour === hour);
+                    const dayEvents = displayEvents.filter((e) => e.day === currentDay && e.startHour === hour);
                     return (
                       <div key={hour} className="grid border-b border-border/50 min-h-[64px]" style={{ gridTemplateColumns: '56px 1fr' }}>
                         <div className="px-3 py-2 text-xs text-muted-foreground border-r border-border">{hour}:00</div>
-                        <div className="p-1 hover:bg-muted/20 cursor-pointer" onClick={() => setShowNewSession({ day: 11, hour })}>
+                        <div className="p-1 hover:bg-muted/20 cursor-pointer" onClick={() => setShowNewSession({ day: currentDay, hour })}>
                           {dayEvents.map((ev) => (
                             <EventCard key={ev.id} ev={ev} expanded onClick={() => setSelectedEvent(ev)} />
                           ))}
@@ -1019,43 +1088,308 @@ export default function CalendarPage() {
               )}
 
               {/* MONTH VIEW */}
-              {view === "month" && (
-                <div className="p-4">
-                  <div className="grid grid-cols-7 gap-0 border border-border rounded-xl overflow-hidden">
-                    {DAYS.map((d) => (
-                      <div key={d} className="bg-muted/30 py-2 text-center text-xs font-semibold text-muted-foreground border-b border-r border-border last:border-r-0">{d}</div>
-                    ))}
-                    {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                      <div key={`empty-${i}`} className="min-h-[80px] border-b border-r border-border bg-muted/10" />
-                    ))}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                      const day = i + 1;
-                      const dayEvents = displayEvents.filter((e) => e.day === day);
-                      const isToday = day === 11;
-                      const occupancyLevel = getOccupancyLevel(events, day);
-                      return (
-                        <Tooltip key={day}>
-                          <TooltipTrigger asChild>
-                            <div className={cn("min-h-[96px] border-b border-r border-border p-1.5 hover:bg-muted/20 cursor-pointer", isToday && "bg-primary/3")}
-                              onClick={() => setShowNewSession({ day })}>
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <p className={cn("text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full", isToday ? "bg-primary text-primary-foreground" : "text-foreground")}>{day}</p>
-                                <span className={cn("text-[10px] rounded-full border px-1.5 py-0.5", occupancyClassMap[occupancyLevel])}>{statusLabel(occupancyLevel)}</span>
+              {view === "month" && (() => {
+                const totalHours = (day: number) =>
+                  displayEvents.filter((e) => e.day === day).reduce((acc, e) => acc + e.duration, 0);
+                const conflictCount = (day: number) =>
+                  displayEvents.filter((e) => e.day === day && e.status === "Conflito").length;
+                const bgClass = (level: OccupancyLevel, isOtherMonth: boolean) => {
+                  if (isOtherMonth) {
+                    return level === "high" ? "bg-destructive/20 text-destructive/50"
+                      : level === "medium" ? "bg-warning/20 text-warning/50"
+                      : "bg-success/20 text-success/50";
+                  }
+                  return level === "high" ? "bg-destructive text-destructive-foreground"
+                    : level === "medium" ? "bg-warning text-warning-foreground"
+                    : "bg-success text-success-foreground";
+                };
+
+                // Prev month trailing days
+                const prevMonthDays = new Date(year, month, 0).getDate();
+                const leadingDays = Array.from({ length: firstDayOfMonth }, (_, i) => prevMonthDays - firstDayOfMonth + 1 + i);
+                // Next month leading days to fill grid to multiple of 7
+                const totalCells = firstDayOfMonth + daysInMonth;
+                const trailingCount = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+
+                const distAcademica = displayEvents.filter((e) => e.theme !== "").length;
+                const distNaoAcademica = Math.max(0, displayEvents.length - distAcademica);
+                const distTotal = Math.max(1, displayEvents.length);
+
+                return (
+                  <div className="p-4 space-y-4">
+                    <div className="grid grid-cols-7 gap-0 rounded-xl overflow-hidden border border-border">
+                      {/* Header */}
+                      {["DOMINGO","SEGUNDA","TERÇA","QUARTA","QUINTA","SEXTA","SÁBADO"].map((d) => (
+                        <div key={d} className="bg-muted/30 py-2 text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wide border-b border-r border-border last:border-r-0">{d}</div>
+                      ))}
+                      {/* Leading days (prev month) */}
+                      {leadingDays.map((d) => {
+                        const level = getOccupancyLevel(events, d);
+                        const hrs = totalHours(d);
+                        return (
+                          <div key={`prev-${d}`} className={cn("min-h-[96px] border-b border-r border-border flex flex-col items-center justify-center gap-1 cursor-pointer", bgClass(level, true))}>
+                            <p className="text-xs font-bold opacity-60">{d}</p>
+                            {hrs > 0 && <p className="text-[10px] font-medium opacity-50">{hrs}h totais</p>}
+                          </div>
+                        );
+                      })}
+                      {/* Current month days */}
+                      {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+                        const level = getOccupancyLevel(events, day);
+                        const hrs = totalHours(day);
+                        const conflicts = conflictCount(day);
+                        const isToday = day === 11;
+                        return (
+                          <Tooltip key={day}>
+                            <TooltipTrigger asChild>
+                              <div
+                                className={cn("min-h-[96px] border-b border-r border-border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-opacity hover:opacity-85 relative", bgClass(level, false), isToday && "ring-2 ring-inset ring-white/60")}
+                                onClick={() => setShowNewSession({ day })}
+                              >
+                                {conflicts > 0 && (
+                                  <AlertTriangle className="w-4 h-4 absolute top-2 right-2 opacity-80" />
+                                )}
+                                <p className="text-sm font-bold">{day}</p>
+                                {hrs > 0 && <p className="text-xs font-medium opacity-80">{hrs}h totais</p>}
                               </div>
-                              {dayEvents.slice(0, 2).map((ev) => (
-                                <div key={ev.id} className={cn("text-xs rounded px-1 py-0.5 mb-0.5 truncate cursor-pointer", colorMap[ev.color])}
-                                  onClick={(e) => { e.stopPropagation(); setSelectedEvent(ev); }}>{ev.title}</div>
-                              ))}
-                              {dayEvents.length > 2 && <p className="text-xs text-muted-foreground">+{dayEvents.length - 2} mais</p>}
-                            </div>
-                          </TooltipTrigger>
-                          <OccupancyTooltip day={day} events={events} />
-                        </Tooltip>
-                      );
-                    })}
+                            </TooltipTrigger>
+                            <OccupancyTooltip day={day} events={events} />
+                          </Tooltip>
+                        );
+                      })}
+                      {/* Trailing days (next month) */}
+                      {Array.from({ length: trailingCount }, (_, i) => i + 1).map((d) => {
+                        const level = getOccupancyLevel(events, d);
+                        const hrs = totalHours(d);
+                        return (
+                          <div key={`next-${d}`} className={cn("min-h-[96px] border-b border-r border-border last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer", bgClass(level, true))}>
+                            <p className="text-xs font-bold opacity-60">{d}</p>
+                            {hrs > 0 && <p className="text-[10px] font-medium opacity-50">{hrs}h totais</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                      <p className="font-medium">Legenda:</p>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success inline-block" />Livre</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-warning inline-block" />Média ocupação</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-destructive inline-block" />Alta ocupação</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[9px] shrink-0">i</span>
+                      Consideramos alocados apenas os recursos confirmados, desconsiderando rascunhos e pré-reservas
+                    </p>
+
+                    {/* Distribution */}
+                    <div className="space-y-3">
+                      <p className="text-sm font-bold text-foreground">Distribuição por atividades</p>
+                      {[
+                        { label: "Atividades acadêmicas", count: 245, pct: 57, color: "bg-primary" },
+                        { label: "Atividades não acadêmicas", count: 108, pct: 25, color: "bg-muted-foreground/40" },
+                      ].map((item) => (
+                        <div key={item.label} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 font-medium text-foreground">
+                              <span className={cn("w-3 h-3 rounded-sm inline-block", item.color)} />
+                              {item.label}
+                            </span>
+                            <span className="text-muted-foreground">{item.count} sessões ({item.pct}%)</span>
+                          </div>
+                          <div className="h-3 bg-muted rounded-full overflow-hidden">
+                            <div className={cn("h-full rounded-full", item.color)} style={{ width: `${item.pct}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
+              {/* QUARTER VIEW */}
+              {view === "quarter" && (() => {
+                const qStart = Math.floor(month / 3) * 3;
+                const months3 = [qStart, qStart + 1, qStart + 2];
+
+                // Mock weekly occupancy data per month (4-5 weeks each)
+                const mockWeeklyOccupancy: Record<number, number[]> = {
+                  0: [10, 26, 90, 70], 1: [10, 26, 90, 70], 2: [10, 26, 90, 70, 80],
+                  3: [15, 30, 60, 45], 4: [20, 20, 50, 35], 5: [25, 45, 70, 60],
+                  6: [30, 50, 80, 65], 7: [10, 35, 55, 40], 8: [20, 60, 85, 55],
+                  9: [15, 40, 70, 50], 10: [25, 55, 65, 45], 11: [10, 20, 45, 30],
+                };
+
+                const weekOccupancyColor = (pct: number) =>
+                  pct >= 70 ? "bg-destructive" : pct >= 40 ? "bg-warning" : "bg-success";
+
+                const activityCount = (mIdx: number) => {
+                  const base = [14, 34, 60, 16, 16, 16, 18, 22, 28, 20, 14, 12];
+                  return base[mIdx] ?? 14;
+                };
+
+                const distAcademica = months3.reduce((acc, m) => acc + activityCount(m), 0);
+                const distNaoAcademica = Math.round(distAcademica * 0.44);
+                const distTotal = distAcademica + distNaoAcademica + Math.round(distAcademica * 0.1);
+
+                return (
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {/* Month cards */}
+                      {months3.map((mIdx) => {
+                        const weeks = mockWeeklyOccupancy[mIdx] ?? [10, 30, 50, 40];
+                        return (
+                          <div key={mIdx} className="border border-border rounded-xl overflow-hidden bg-card">
+                            <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                              <p className="text-sm font-bold text-foreground">{MONTHS[mIdx]}</p>
+                              <span className="text-xs text-muted-foreground">{activityCount(mIdx)} Atividades</span>
+                            </div>
+                            <div className="p-4 space-y-2.5">
+                              <p className="text-xs font-semibold text-muted-foreground">Ocupação geral por semana</p>
+                              {weeks.map((pct, wi) => (
+                                <div key={wi} className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{wi + 1} semana</span>
+                                    <span className="font-medium text-foreground">{pct}%</span>
+                                  </div>
+                                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                    <div className={cn("h-full rounded-full transition-all", weekOccupancyColor(pct))} style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Distribution card */}
+                      <div className="border border-border rounded-xl overflow-hidden bg-card">
+                        <div className="px-4 py-3 border-b border-border bg-muted/20">
+                          <p className="text-sm font-bold text-foreground">Distribuição por atividades</p>
+                        </div>
+                        <div className="p-4 space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="flex items-center gap-2 font-medium text-foreground">
+                                <span className="w-3 h-3 rounded-sm bg-primary inline-block" />
+                                Atividades acadêmicas
+                              </span>
+                              <span className="text-muted-foreground">{distAcademica} sessões ({Math.round((distAcademica / distTotal) * 100)}%)</span>
+                            </div>
+                            <div className="h-3 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full" style={{ width: `${Math.round((distAcademica / distTotal) * 100)}%` }} />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="flex items-center gap-2 font-medium text-foreground">
+                                <span className="w-3 h-3 rounded-sm bg-muted-foreground/40 inline-block" />
+                                Atividades não acadêmicas
+                              </span>
+                              <span className="text-muted-foreground">{distNaoAcademica} sessões ({Math.round((distNaoAcademica / distTotal) * 100)}%)</span>
+                            </div>
+                            <div className="h-3 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-muted-foreground/40 rounded-full" style={{ width: `${Math.round((distNaoAcademica / distTotal) * 100)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <p className="font-medium">Legenda:</p>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success inline-block" />Livre</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-warning inline-block" />Média ocupação</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-destructive inline-block" />Alta ocupação</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[9px]">i</span>
+                      Consideramos alocados apenas os recursos confirmados, desconsiderando rascunhos e pré-reservas
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* SEMESTER VIEW */}
+              {view === "semester" && (() => {
+                const sStart = Math.floor(month / 6) * 6;
+                const months6 = Array.from({ length: 6 }, (_, i) => sStart + i);
+
+                const monthOccupancy: Record<number, number> = {
+                  0: 10, 1: 60, 2: 90, 3: 15, 4: 20, 5: 70,
+                  6: 35, 7: 50, 8: 80, 9: 25, 10: 45, 11: 10,
+                };
+                const activityCount = (mIdx: number) => {
+                  const base = [14, 34, 60, 16, 16, 16, 18, 22, 28, 20, 14, 12];
+                  return base[mIdx] ?? 14;
+                };
+                const barColor = (pct: number) =>
+                  pct >= 70 ? "bg-destructive" : pct >= 40 ? "bg-warning" : "bg-success";
+
+                return (
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {months6.map((mIdx) => {
+                        const pct = monthOccupancy[mIdx] ?? 20;
+                        return (
+                          <div key={mIdx} className="border border-border rounded-xl overflow-hidden bg-card">
+                            <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                              <p className="text-sm font-bold text-foreground">{MONTHS[mIdx]}</p>
+                              <span className="text-xs text-muted-foreground">{activityCount(mIdx)} Atividades</span>
+                            </div>
+                            <div className="p-5 space-y-3">
+                              <div className="text-center">
+                                <p className="font-display font-black text-5xl text-foreground">{pct}%</p>
+                                <p className="text-xs text-muted-foreground mt-1">Ocupação geral</p>
+                              </div>
+                              <div className="h-6 bg-muted rounded-lg overflow-hidden">
+                                <div className={cn("h-full rounded-lg transition-all duration-500", barColor(pct))} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Distribution section */}
+                    <div className="border border-border rounded-xl p-4 bg-card space-y-3">
+                      <p className="text-sm font-bold text-foreground">Distribuição por atividades</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[
+                          { label: "Atividades acadêmicas", count: 245, pct: 57, color: "bg-primary" },
+                          { label: "Atividades não acadêmicas", count: 108, pct: 25, color: "bg-muted-foreground/40" },
+                        ].map((item) => (
+                          <div key={item.label} className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="flex items-center gap-2 font-medium text-foreground">
+                                <span className={cn("w-3 h-3 rounded-sm inline-block", item.color)} />
+                                {item.label}
+                              </span>
+                              <span className="text-muted-foreground">{item.count} sessões ({item.pct}%)</span>
+                            </div>
+                            <div className="h-3 bg-muted rounded-full overflow-hidden">
+                              <div className={cn("h-full rounded-full", item.color)} style={{ width: `${item.pct}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                      <p className="font-medium">Legenda:</p>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success inline-block" />Baixa ocupação</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-warning inline-block" />Média ocupação</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-destructive inline-block" />Alta ocupação</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[9px]">i</span>
+                      Consideramos alocados apenas os recursos confirmados, desconsiderando rascunhos e pré-reservas
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* YEAR VIEW */}
               {view === "year" && (
@@ -1105,6 +1439,11 @@ export default function CalendarPage() {
               year={year}
               onPrevMonth={() => setMonth((m) => Math.max(0, m - 1))}
               onNextMonth={() => setMonth((m) => Math.min(11, m + 1))}
+              onSelectDay={(d) => {
+                if (view === "day") { setCurrentDay(d); }
+                else if (view === "week") { setWeekStart(d); }
+                else { setSelectedDays([d]); }
+              }}
             />
           </div>
 
@@ -1634,7 +1973,7 @@ function EventTooltip({ ev }: { ev: CalendarEvent }) {
 
 // ── Right Insights Panel (recolhível) ──────────────────────────────
 function RightInsightsPanel({
-  open, onToggle, events, view, onChangeView, month, year, onPrevMonth, onNextMonth,
+  open, onToggle, events, view, onChangeView, month, year, onPrevMonth, onNextMonth, onSelectDay,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -1645,6 +1984,7 @@ function RightInsightsPanel({
   year: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  onSelectDay: (day: number) => void;
 }) {
   // Considerar eventos do dia 11 como "período corresponde à visualização" para insights rápidos
   const periodEvents = events;
@@ -1704,10 +2044,13 @@ function RightInsightsPanel({
             const d = i + 1;
             const isToday = d === 11;
             return (
-              <div key={d} className={cn(
-                "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer hover:bg-muted",
-                isToday && "bg-primary text-primary-foreground font-bold hover:bg-primary",
-              )}>{d}</div>
+              <div key={d}
+                onClick={() => { if (view === "day") { onSelectDay(d); onChangeView("day"); } }}
+                className={cn(
+                  "text-[10px] h-6 flex items-center justify-center rounded-full cursor-pointer hover:bg-muted",
+                  isToday && "bg-primary text-primary-foreground font-bold hover:bg-primary",
+                  view === "day" && !isToday && "hover:bg-primary/20",
+                )}>{d}</div>
             );
           })}
         </div>
@@ -1716,11 +2059,11 @@ function RightInsightsPanel({
 
       {/* Seletor de visualização */}
       <div className="px-4 py-3 border-b border-border space-y-1">
-        {(["week", "day", "month", "year"] as CalendarView[]).map((v) => (
+        {(["week", "day", "month", "quarter", "semester", "year"] as CalendarView[]).map((v) => (
           <button key={v} onClick={() => onChangeView(v)}
             className={cn("w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-colors",
               view === v ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted")}>
-            {v === "week" ? "Semana" : v === "day" ? "Dia" : v === "month" ? "Mês" : "Ano"}
+            {v === "week" ? "Semana" : v === "day" ? "Dia" : v === "month" ? "Mês" : v === "quarter" ? "Trimestre" : v === "semester" ? "Semestre" : "Ano"}
           </button>
         ))}
       </div>
