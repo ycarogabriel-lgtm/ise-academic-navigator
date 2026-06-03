@@ -30,9 +30,12 @@ interface TurmaFormData {
   diretorPrograma: string; nomeFinanceiro: string; nomeFantasia: string;
   coordenador: string; diretorAcademico: string; planejamento: string;
   producaoMateriais: string; codigoFinanceiro: string;
+  diretorTurma?: string; coordenadorTurma?: string;
+  coordenadorAcademico?: string; responsavelMateriais?: string;
+  nomeFantasiaI18n: Array<{ langCode: string; langLabel: string; value: string }>;
   periodoStart?: Date; periodoEnd?: Date; diasPrograma: number | "";
   numParticipantes: number | ""; estimativaAlunos: number | "";
-  modalidade: ModalityType; anoConclusion: string;
+  modalidade: ModalityType; anoInicio: string; anoConclusion: string;
   local: LocalType; tipoPrograma: ProgramType;
 }
 
@@ -71,6 +74,16 @@ const MODALIDADES: { value: ModalityType; label: string }[] = [
 const LOCAIS: { value: LocalType; label: string }[] = [
   { value: "campus_ise", label: "Campus ISE" },
   { value: "externo", label: "Externo" },
+];
+const AVAILABLE_LANGUAGES = [
+  { code: "fr", label: "Francês" },
+  { code: "de", label: "Alemão" },
+  { code: "it", label: "Italiano" },
+  { code: "zh", label: "Chinês" },
+  { code: "ja", label: "Japonês" },
+  { code: "ar", label: "Árabe" },
+  { code: "ru", label: "Russo" },
+  { code: "pt-pt", label: "Português (Portugal)" },
 ];
 const STEPS = ["Identificação", "Responsáveis", "Estrutura Acadêmica", "Grade", "Detalhes das sessões", "Dias de aula"];
 
@@ -191,9 +204,19 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
   programs: Program[];
 }) {
   const selectedProgram = programs.find((p) => p.id === form.programaId);
+  const isEmba = selectedProgram?.sigla?.toUpperCase().includes("EMBA") ?? false;
   const generatedName = selectedProgram
-    ? `${selectedProgram.sigla}${selectedProgram.cliente ? " " + selectedProgram.cliente.split(" ")[0] : ""} ${form.anoConclusion || new Date().getFullYear()}`
+    ? `${selectedProgram.sigla}${selectedProgram.cliente ? " " + selectedProgram.cliente.split(" ")[0] : ""} ${isEmba ? (form.anoConclusion || form.anoInicio || new Date().getFullYear()) : (form.anoInicio || new Date().getFullYear())}`
     : "";
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const langPickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (langPickerRef.current && !langPickerRef.current.contains(e.target as Node)) setShowLangPicker(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
     <div className="space-y-5">
@@ -264,20 +287,79 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FieldLabel optional>Nome financeiro</FieldLabel>
-          <input className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={form.nomeFinanceiro}
-            onChange={(e) => setForm((f) => ({ ...f, nomeFinanceiro: e.target.value }))}
-            placeholder="Nome para nota fiscal..." />
-        </div>
-        <div>
-          <FieldLabel optional>Nome fantasia</FieldLabel>
-          <input className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={form.nomeFantasia}
-            onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))}
-            placeholder="Como será divulgado..." />
+      <div>
+        <FieldLabel optional>Nome financeiro</FieldLabel>
+        <input className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          value={form.nomeFinanceiro}
+          onChange={(e) => setForm((f) => ({ ...f, nomeFinanceiro: e.target.value }))}
+          placeholder="Nome para nota fiscal..." />
+      </div>
+
+      <div>
+        <FieldLabel optional>Nome fantasia</FieldLabel>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 w-24 shrink-0">
+              <Globe className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Padrão</span>
+            </div>
+            <input className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+              value={form.nomeFantasia}
+              onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))}
+              placeholder="Como será divulgado..." />
+          </div>
+          {form.nomeFantasiaI18n.map((item, idx) => (
+            <div key={item.langCode} className="flex items-center gap-2">
+              <div className="flex items-center gap-1 w-24 shrink-0">
+                <Globe className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{item.langLabel}</span>
+              </div>
+              <input
+                className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                value={item.value}
+                onChange={(e) => {
+                  const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, value: e.target.value } : l);
+                  setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
+                }}
+                placeholder={`Nome fantasia em ${item.langLabel}...`}
+              />
+              {idx >= 2 && (
+                <button type="button"
+                  onClick={() => setForm((f) => ({ ...f, nomeFantasiaI18n: f.nomeFantasiaI18n.filter((_, i) => i !== idx) }))}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="relative" ref={langPickerRef}>
+            {AVAILABLE_LANGUAGES.filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code)).length > 0 && (
+              <button type="button"
+                onClick={() => setShowLangPicker((p) => !p)}
+                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors mt-1">
+                <Plus className="w-3 h-3" /> Adicionar outro idioma
+              </button>
+            )}
+            {showLangPicker && (
+              <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-10 min-w-40 overflow-hidden">
+                {AVAILABLE_LANGUAGES
+                  .filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code))
+                  .map((lang) => (
+                    <button key={lang.code} type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors text-foreground"
+                      onClick={() => {
+                        setForm((f) => ({
+                          ...f,
+                          nomeFantasiaI18n: [...f.nomeFantasiaI18n, { langCode: lang.code, langLabel: lang.label, value: "" }],
+                        }));
+                        setShowLangPicker(false);
+                      }}>
+                      {lang.label}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -289,14 +371,27 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
             onChange={(e) => setForm((f) => ({ ...f, codigoFinanceiro: e.target.value }))}
             placeholder="FIN-2025-001" />
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <FieldLabel required tooltip="EMBA: use o ano de conclusão. Demais programas: use o ano de início.">Ano de referência</FieldLabel>
+          <FieldLabel required tooltip="Ano em que a turma inicia o programa.">Ano de Início</FieldLabel>
+          <input className={cn("w-full px-3 py-2.5 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30",
+            errors.anoInicio ? "border-destructive" : "border-input"
+          )}
+            value={form.anoInicio}
+            onChange={(e) => { setForm((f) => ({ ...f, anoInicio: e.target.value })); setErrors((er) => ({ ...er, anoInicio: undefined })); }}
+            placeholder="2025" maxLength={4} />
+          {errors.anoInicio && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.anoInicio}</p>}
+        </div>
+        <div>
+          <FieldLabel required>Ano de Conclusão</FieldLabel>
           <input className={cn("w-full px-3 py-2.5 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30",
             errors.anoConclusion ? "border-destructive" : "border-input"
           )}
             value={form.anoConclusion}
             onChange={(e) => { setForm((f) => ({ ...f, anoConclusion: e.target.value })); setErrors((er) => ({ ...er, anoConclusion: undefined })); }}
-            placeholder="2025" maxLength={4} />
+            placeholder="2026" maxLength={4} />
           {errors.anoConclusion && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.anoConclusion}</p>}
         </div>
       </div>
@@ -312,38 +407,73 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
 }) {
   return (
     <div className="space-y-5">
-      <div>
-        <FieldLabel required>Diretor do programa</FieldLabel>
-        <PeopleAutocomplete value={form.diretorPrograma}
-          onChange={(v) => { setForm((f) => ({ ...f, diretorPrograma: v })); setErrors((er) => ({ ...er, diretorPrograma: undefined })); }}
-          placeholder="Buscar diretor..." />
-        {errors.diretorPrograma && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.diretorPrograma}</p>}
-      </div>
-      <div>
-        <FieldLabel optional>Diretor acadêmico (DA)</FieldLabel>
-        <PeopleAutocomplete value={form.diretorAcademico}
-          onChange={(v) => setForm((f) => ({ ...f, diretorAcademico: v }))}
-          placeholder="Responsável pela grade..." />
-        <p className="text-xs text-muted-foreground mt-1">O DA receberá a pendência de preenchimento da grade no seu dashboard.</p>
-      </div>
-      <div>
-        <FieldLabel optional>Coordenador</FieldLabel>
-        <PeopleAutocomplete value={form.coordenador}
-          onChange={(v) => setForm((f) => ({ ...f, coordenador: v }))}
-          placeholder="Coordenador acadêmico..." />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <FieldLabel required>Diretor do programa</FieldLabel>
+          <PeopleAutocomplete value={form.diretorPrograma}
+            onChange={(v) => { setForm((f) => ({ ...f, diretorPrograma: v })); setErrors((er) => ({ ...er, diretorPrograma: undefined })); }}
+            placeholder="Buscar diretor..." />
+          {errors.diretorPrograma && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.diretorPrograma}</p>}
+        </div>
+        <div>
+          <FieldLabel optional>Diretor acadêmico (DA)</FieldLabel>
+          <PeopleAutocomplete value={form.diretorAcademico}
+            onChange={(v) => setForm((f) => ({ ...f, diretorAcademico: v }))}
+            placeholder="Responsável pela grade..." />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
+        <div>
+          <FieldLabel optional>Coordenador</FieldLabel>
+          <PeopleAutocomplete value={form.coordenador}
+            onChange={(v) => setForm((f) => ({ ...f, coordenador: v }))}
+            placeholder="Coordenador acadêmico..." />
+        </div>
         <div>
           <FieldLabel optional>Planejamento (DP)</FieldLabel>
           <PeopleAutocomplete value={form.planejamento}
             onChange={(v) => setForm((f) => ({ ...f, planejamento: v }))}
             placeholder="Diretor de Planejamento..." />
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <FieldLabel optional>Produção de materiais</FieldLabel>
           <PeopleAutocomplete value={form.producaoMateriais}
             onChange={(v) => setForm((f) => ({ ...f, producaoMateriais: v }))}
             placeholder="Responsável por materiais..." />
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Coordenação da turma</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <FieldLabel optional>Diretor da Turma</FieldLabel>
+            <PeopleAutocomplete value={form.diretorTurma ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, diretorTurma: v }))}
+              placeholder="Buscar diretor da turma..." />
+          </div>
+          <div>
+            <FieldLabel optional>Coordenador da Turma</FieldLabel>
+            <PeopleAutocomplete value={form.coordenadorTurma ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, coordenadorTurma: v }))}
+              placeholder="Buscar coordenador da turma..." />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div>
+            <FieldLabel optional>Coordenador Acadêmico</FieldLabel>
+            <PeopleAutocomplete value={form.coordenadorAcademico ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, coordenadorAcademico: v }))}
+              placeholder="Buscar coordenador acadêmico..." />
+          </div>
+          <div>
+            <FieldLabel optional>Responsável por Materiais</FieldLabel>
+            <PeopleAutocomplete value={form.responsavelMateriais ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, responsavelMateriais: v }))}
+              placeholder="Buscar responsável..." />
+          </div>
         </div>
       </div>
     </div>
@@ -357,73 +487,34 @@ function StepEstrutura({ form, setForm, errors }: {
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FieldLabel required>Modalidade</FieldLabel>
-          <select className={cn("w-full px-3 py-2.5 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground",
-            errors.modalidade ? "border-destructive" : "border-input"
-          )}
-            value={form.modalidade}
-            onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value as ModalityType }))}>
-            {MODALIDADES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <FieldLabel optional>Local</FieldLabel>
-          <select className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-            value={form.local}
-            onChange={(e) => setForm((f) => ({ ...f, local: e.target.value as LocalType }))}>
-            {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-          </select>
-        </div>
+      <div>
+        <FieldLabel optional>Local</FieldLabel>
+        <select className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+          value={form.local}
+          onChange={(e) => setForm((f) => ({ ...f, local: e.target.value as LocalType }))}>
+          {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
       </div>
 
       <div>
-        <FieldLabel optional>Intervalo de datas pretendidas</FieldLabel>
+        <FieldLabel optional>Datas da turma</FieldLabel>
         <div className="grid grid-cols-2 gap-3">
           <DatePicker value={form.periodoStart}
             onChange={(d) => setForm((f) => ({ ...f, periodoStart: d }))}
-            placeholder="Data início" />
+            placeholder="Data de início" />
           <DatePicker value={form.periodoEnd}
             onChange={(d) => setForm((f) => ({ ...f, periodoEnd: d }))}
-            placeholder="Data fim" minDate={form.periodoStart} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <FieldLabel optional tooltip="Total de dias letivos">Dias de programa</FieldLabel>
-          <input type="number" min={0}
-            className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={form.diasPrograma}
-            onChange={(e) => setForm((f) => ({ ...f, diasPrograma: Number(e.target.value) || "" }))}
-            placeholder="30" />
-        </div>
-        <div>
-          <FieldLabel optional tooltip="Para dimensionamento de salas">Estimativa de alunos</FieldLabel>
-          <input type="number" min={0}
-            className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={form.estimativaAlunos}
-            onChange={(e) => setForm((f) => ({ ...f, estimativaAlunos: Number(e.target.value) || "" }))}
-            placeholder="40" />
-        </div>
-        <div>
-          <FieldLabel optional>Nº participantes</FieldLabel>
-          <input type="number" min={0}
-            className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={form.numParticipantes}
-            onChange={(e) => setForm((f) => ({ ...f, numParticipantes: Number(e.target.value) || "" }))}
-            placeholder="40" />
+            placeholder="Data de fim" minDate={form.periodoStart} />
         </div>
       </div>
 
       <div>
-        <FieldLabel optional>Tipo de programa</FieldLabel>
-        <select className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-          value={form.tipoPrograma}
-          onChange={(e) => setForm((f) => ({ ...f, tipoPrograma: e.target.value as ProgramType }))}>
-          {TIPO_PROGRAMA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+        <FieldLabel optional>Nº de participantes</FieldLabel>
+        <input type="number" min={0}
+          className="w-full px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          value={form.numParticipantes}
+          onChange={(e) => setForm((f) => ({ ...f, numParticipantes: Number(e.target.value) || "" }))}
+          placeholder="40" />
       </div>
     </div>
   );
@@ -1187,12 +1278,12 @@ function StepDiasAula() {
           </div>
         </div>
 
-        <div className={cn("flex gap-4 flex-1", viewDir === "vertical" && "flex-col")}>
-          {/* Left panel */}
-          <div className={cn("shrink-0 space-y-4", viewDir === "horizontal" ? "w-52" : "w-full")}>
+        <div className="flex flex-col gap-4 flex-1">
+          {/* Top panel – sessions list */}
+          <div className="flex gap-6">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Acadêmicas</p>
-              <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {academic.length === 0 ? (
                   <p className="text-xs text-muted-foreground italic">Todas alocadas</p>
                 ) : academic.map((s) => (
@@ -1203,7 +1294,7 @@ function StepDiasAula() {
             {nonAcademic.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Não-acadêmicas</p>
-                <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {nonAcademic.map((s) => (
                     <DraggableSessionCard key={s.id} sessao={s} academic={false} />
                   ))}
@@ -1212,36 +1303,69 @@ function StepDiasAula() {
             )}
           </div>
 
-          {/* Right panel */}
-          <div className="flex-1 overflow-auto">
-            <div className="min-w-[480px]">
-              <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
-                <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
-                {WEEK_DAYS.map((d) => (
-                  <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
+          {/* Bottom panel – grid */}
+          <div className="overflow-auto">
+            {viewDir === "horizontal" ? (
+              /* Horizontal: days = columns, hours = rows */
+              <div className="min-w-[480px]">
+                <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
+                  <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
+                  {WEEK_DAYS.map((d) => (
+                    <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
+                  ))}
+                </div>
+                {TIME_ROWS.map((time, tIdx) => (
+                  <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)`, gridAutoRows: "40px" }}>
+                    <div className="h-10 flex items-center justify-end text-xs text-muted-foreground pr-1.5">{time}</div>
+                    {WEEK_DAYS.map((_, dIdx) => {
+                      const placed = getSessionAt(dIdx, tIdx);
+                      const cellId = `cell-${dIdx}-${tIdx}`;
+                      return (
+                        <DroppableCell key={dIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
+                          {placed && (
+                            <DraggablePlacedSession
+                              sessao={placed}
+                              isBeingDragged={activeId === placed.id}
+                              onRemove={() => removeAllocation(placed.id)}
+                            />
+                          )}
+                        </DroppableCell>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
-              {TIME_ROWS.map((time, tIdx) => (
-                <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)`, gridAutoRows: "40px" }}>
-                  <div className="h-10 flex items-center justify-end text-xs text-muted-foreground pr-1.5">{time}</div>
-                  {WEEK_DAYS.map((_, dIdx) => {
-                    const placed = getSessionAt(dIdx, tIdx);
-                    const cellId = `cell-${dIdx}-${tIdx}`;
-                    return (
-                      <DroppableCell key={dIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
-                        {placed && (
-                          <DraggablePlacedSession
-                            sessao={placed}
-                            isBeingDragged={activeId === placed.id}
-                            onRemove={() => removeAllocation(placed.id)}
-                          />
-                        )}
-                      </DroppableCell>
-                    );
-                  })}
+            ) : (
+              /* Vertical: hours = columns, days = rows */
+              <div className="min-w-[640px]">
+                <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)` }}>
+                  <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Dia</div>
+                  {TIME_ROWS.map((time) => (
+                    <div key={time} className="text-xs font-semibold text-center text-foreground py-1">{time}</div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {WEEK_DAYS.map((day, dIdx) => (
+                  <div key={day} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)`, gridAutoRows: "40px" }}>
+                    <div className="h-10 flex items-center justify-end text-xs font-semibold text-foreground pr-1.5">{day}</div>
+                    {TIME_ROWS.map((_, tIdx) => {
+                      const placed = getSessionAt(dIdx, tIdx);
+                      const cellId = `cell-${dIdx}-${tIdx}`;
+                      return (
+                        <DroppableCell key={tIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
+                          {placed && (
+                            <DraggablePlacedSession
+                              sessao={placed}
+                              isBeingDragged={activeId === placed.id}
+                              onRemove={() => removeAllocation(placed.id)}
+                            />
+                          )}
+                        </DroppableCell>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1280,7 +1404,12 @@ export default function NewTurmaPage() {
     diretorAcademico: "", planejamento: "", producaoMateriais: "", codigoFinanceiro: "",
     periodoStart: undefined, periodoEnd: undefined, diasPrograma: "",
     numParticipantes: "", estimativaAlunos: "", modalidade: "presencial",
-    anoConclusion: String(new Date().getFullYear()), local: "campus_ise", tipoPrograma: "custom",
+    nomeFantasiaI18n: [
+      { langCode: "en", langLabel: "Inglês", value: "" },
+      { langCode: "es", langLabel: "Espanhol", value: "" },
+    ],
+    anoInicio: String(new Date().getFullYear()), anoConclusion: "",
+    local: "campus_ise", tipoPrograma: "custom",
   };
 
   const [form, setForm] = useState<TurmaFormData>(
@@ -1293,14 +1422,18 @@ export default function NewTurmaPage() {
       periodoStart: editTurma.periodoStart, periodoEnd: editTurma.periodoEnd,
       diasPrograma: editTurma.diasPrograma || "", numParticipantes: editTurma.numParticipantes || "",
       estimativaAlunos: editTurma.estimativaAlunos || "", modalidade: editTurma.modalidade || "presencial",
-      anoConclusion: editTurma.anoConclusion || String(new Date().getFullYear()),
+      nomeFantasiaI18n: editTurma.nomeFantasiaI18n ?? [
+        { langCode: "en", langLabel: "Inglês", value: "" },
+        { langCode: "es", langLabel: "Espanhol", value: "" },
+      ],
+      anoInicio: editTurma.anoInicio || String(new Date().getFullYear()),
+      anoConclusion: editTurma.anoConclusion || "",
       local: editTurma.local || "campus_ise", tipoPrograma: editTurma.tipoPrograma || "custom",
     } : emptyTurmaForm
   );
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Partial<Record<keyof TurmaFormData, string>>>({});
   const [showClonar, setShowClonar] = useState(false);
-  const isFullWidth = step >= 4;
 
   const validateStep = (s: number) => {
     const e: Partial<Record<keyof TurmaFormData, string>> = {};
@@ -1308,14 +1441,13 @@ export default function NewTurmaPage() {
       if (!form.nomeTurma.trim()) e.nomeTurma = "Nome da turma é obrigatório";
       if (!form.siglaTurma.trim()) e.siglaTurma = "Sigla é obrigatória";
       if (!form.programaId) e.programaId = "Selecione um programa";
+      if (!form.anoInicio) e.anoInicio = "Ano de início é obrigatório";
       if (!form.anoConclusion) e.anoConclusion = "Ano de conclusão é obrigatório";
     }
     if (s === 1) {
-      if (!form.diretorPrograma.trim()) e.diretorPrograma = "Diretor é obrigatório";
+      // all optional
     }
-    if (s === 2) {
-      if (!form.modalidade) e.modalidade = "Modalidade é obrigatória";
-    }
+    // step 2 has no required fields
     // steps 3, 4, 5 have no required fields
     return e;
   };
@@ -1359,7 +1491,7 @@ export default function NewTurmaPage() {
           onConfirm={() => toast({ title: "Estrutura clonada", description: "Grade importada com sucesso." })}
         />
       )}
-      <div className={cn("px-6 py-8 animate-fade-in", !isFullWidth && "max-w-2xl mx-auto")}>
+      <div className="px-6 py-8 animate-fade-in">
 
         {/* Page header */}
         <div className="flex items-center justify-between gap-3 mb-8 flex-wrap">
