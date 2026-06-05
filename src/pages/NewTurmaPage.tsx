@@ -21,7 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 type ProgramType = "custom" | "aberto" | "imersao" | "colaboradores" | "educacao_executiva" | "emba" | "eventos" | "internacionais" | "llm" | "mba_full_time" | "easy_humanidades";
 type ModalityType = "presencial" | "hibrido" | "online";
 type LocalType = "campus_ise" | "externo";
-type NomeFantasiaUso = "geral" | "espaco" | "recurso" | "docente" | "calendario";
+type NomeFantasiaUso = "geral" | "moodle" | "horario_aluno" | "espaco" | "recurso" | "docente" | "calendario";
 
 interface Person { id: string; name: string; role: string }
 interface Program { id: number; name: string; sigla: string; cliente?: string; status: string }
@@ -53,6 +53,7 @@ interface TurmaFormData {
   local: LocalType; tipoPrograma: ProgramType;
   gradeModel: GradeModel;
   customDayBlocks: Record<number, DayBlock[]>;
+  numCustomDays: number;
 }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -102,11 +103,13 @@ const AVAILABLE_LANGUAGES = [
   { code: "pt-pt", label: "Português (Portugal)" },
 ];
 const NOME_FANTASIA_USOS: { value: NomeFantasiaUso; label: string }[] = [
-  { value: "geral", label: "Geral" },
-  { value: "espaco", label: "Espaço" },
-  { value: "recurso", label: "Recurso" },
-  { value: "docente", label: "Docente" },
-  { value: "calendario", label: "Calendário" },
+  { value: "geral",          label: "Geral" },
+  { value: "moodle",         label: "Moodle" },
+  { value: "horario_aluno",  label: "Horário de Aluno" },
+  { value: "calendario",     label: "Calendário" },
+  { value: "espaco",         label: "Espaço" },
+  { value: "recurso",        label: "Recurso" },
+  { value: "docente",        label: "Docente" },
 ];
 const STEPS = ["Identificação", "Responsáveis", "Informações da Turma", "Grade", "Detalhes das sessões", "Dias de aula"];
 
@@ -128,13 +131,17 @@ function FieldLabel({ children, required, optional, tooltip }: {
   );
 }
 
-function PeopleAutocomplete({ value, onChange, placeholder }: {
-  value: string; onChange: (v: string) => void; placeholder?: string;
+function PeopleAutocomplete({ value, onChange, onSelect, placeholder, roleFilter }: {
+  value: string; onChange: (v: string) => void; onSelect?: (p: Person) => void; placeholder?: string; roleFilter?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
-  const filtered = PEOPLE.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
+  const filtered = PEOPLE.filter((p) => {
+    const matchesName = p.name.toLowerCase().includes(query.toLowerCase());
+    const matchesRole = !roleFilter || p.role.toLowerCase().includes(roleFilter.toLowerCase());
+    return matchesName && matchesRole;
+  });
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
@@ -157,7 +164,7 @@ function PeopleAutocomplete({ value, onChange, placeholder }: {
           {filtered.map((p) => (
             <button key={p.id} type="button"
               className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors"
-              onMouseDown={() => { onChange(p.name); setQuery(p.name); setOpen(false); }}
+              onMouseDown={() => { onChange(p.name); setQuery(p.name); setOpen(false); onSelect?.(p); }}
             >
               <p className="text-sm text-foreground font-medium">{p.name}</p>
               <p className="text-xs text-muted-foreground">{p.role}</p>
@@ -232,6 +239,7 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
     ? `${selectedProgram.sigla}${selectedProgram.cliente ? " " + selectedProgram.cliente.split(" ")[0] : ""} ${isEmba ? (form.anoConclusion || form.anoInicio || new Date().getFullYear()) : (form.anoInicio || new Date().getFullYear())}`
     : "";
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [nfOpen, setNfOpen] = useState(false);
   const langPickerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -240,6 +248,9 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const nfFilled = form.nomeFantasia.trim() || form.nomeFantasiaI18n.some((i) => i.value.trim());
+  const nfFilledCount = [form.nomeFantasia, ...form.nomeFantasiaI18n.map((i) => i.value)].filter((v) => v.trim()).length;
 
   return (
     <div className="space-y-5">
@@ -318,93 +329,123 @@ function StepIdentificacao({ form, setForm, errors, setErrors, programs }: {
           placeholder="Nome para nota fiscal..." />
       </div>
 
-      <div>
-        <FieldLabel optional>Nome fantasia</FieldLabel>
-        <div className="space-y-2">
+      {/* ── Nome fantasia — colapsável ─────────────────────────────────── */}
+      <div className="border border-border rounded-xl overflow-hidden">
+        <button type="button"
+          onClick={() => setNfOpen((p) => !p)}
+          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 w-24 shrink-0">
-              <Globe className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Padrão</span>
-            </div>
-            <select
-              className="w-36 px-2 py-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-              value={form.nomeFantasiaUso}
-              onChange={(e) => setForm((f) => ({ ...f, nomeFantasiaUso: e.target.value as NomeFantasiaUso }))}
-            >
-              {NOME_FANTASIA_USOS.map((uso) => (
-                <option key={uso.value} value={uso.value}>{uso.label}</option>
-              ))}
-            </select>
-            <input className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-              value={form.nomeFantasia}
-              onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))}
-              placeholder="Como será divulgado..." />
+            <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs font-medium text-muted-foreground">Nomes fantasia</span>
+            <span className="text-[10px] text-muted-foreground font-normal">(opcional)</span>
+            {nfFilled && (
+              <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20">
+                {nfFilledCount} preenchido{nfFilledCount !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
-          {form.nomeFantasiaI18n.map((item, idx) => (
-            <div key={item.langCode} className="flex items-center gap-2">
-              <div className="flex items-center gap-1 w-24 shrink-0">
-                <Globe className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">{item.langLabel}</span>
+          {nfOpen
+            ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+        </button>
+
+        {nfOpen && (
+          <div className="border-t border-border px-3 py-3 space-y-2 bg-muted/10">
+            {/* Header row */}
+            <div className="grid grid-cols-[72px_1fr_auto] gap-2 items-center mb-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Idioma</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Nome / Uso</span>
+              <span />
+            </div>
+
+            {/* Padrão row */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 w-[72px] shrink-0">
+                <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">Padrão</span>
               </div>
+              <input className="flex-1 min-w-0 px-2.5 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                value={form.nomeFantasia}
+                onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))}
+                placeholder="Como será divulgado..." />
               <select
-                className="w-36 px-2 py-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-                value={item.uso}
-                onChange={(e) => {
-                  const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, uso: e.target.value as NomeFantasiaUso } : l);
-                  setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
-                }}
-              >
+                className="w-40 shrink-0 px-2 py-2 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+                value={form.nomeFantasiaUso}
+                onChange={(e) => setForm((f) => ({ ...f, nomeFantasiaUso: e.target.value as NomeFantasiaUso }))}>
                 {NOME_FANTASIA_USOS.map((uso) => (
                   <option key={uso.value} value={uso.value}>{uso.label}</option>
                 ))}
               </select>
-              <input
-                className="flex-1 px-3 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
-                value={item.value}
-                onChange={(e) => {
-                  const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, value: e.target.value } : l);
-                  setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
-                }}
-                placeholder={`Nome fantasia em ${item.langLabel}...`}
-              />
-              {idx >= 2 && (
+            </div>
+
+            {/* i18n rows */}
+            {form.nomeFantasiaI18n.map((item, idx) => (
+              <div key={item.langCode} className="flex items-center gap-2">
+                <div className="flex items-center gap-1 w-[72px] shrink-0">
+                  <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate">{item.langLabel}</span>
+                </div>
+                <input
+                  className="flex-1 min-w-0 px-2.5 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  value={item.value}
+                  onChange={(e) => {
+                    const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, value: e.target.value } : l);
+                    setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
+                  }}
+                  placeholder={`Nome fantasia em ${item.langLabel}...`}
+                />
+                <select
+                  className="w-40 shrink-0 px-2 py-2 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
+                  value={item.uso}
+                  onChange={(e) => {
+                    const updated = form.nomeFantasiaI18n.map((l, i) => i === idx ? { ...l, uso: e.target.value as NomeFantasiaUso } : l);
+                    setForm((f) => ({ ...f, nomeFantasiaI18n: updated }));
+                  }}>
+                  {NOME_FANTASIA_USOS.map((uso) => (
+                    <option key={uso.value} value={uso.value}>{uso.label}</option>
+                  ))}
+                </select>
+                {idx >= 2 && (
+                  <button type="button"
+                    onClick={() => setForm((f) => ({ ...f, nomeFantasiaI18n: f.nomeFantasiaI18n.filter((_, i) => i !== idx) }))}
+                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {/* Add language */}
+            <div className="relative pt-0.5" ref={langPickerRef}>
+              {AVAILABLE_LANGUAGES.filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code)).length > 0 && (
                 <button type="button"
-                  onClick={() => setForm((f) => ({ ...f, nomeFantasiaI18n: f.nomeFantasiaI18n.filter((_, i) => i !== idx) }))}
-                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
-                  <X className="w-3.5 h-3.5" />
+                  onClick={() => setShowLangPicker((p) => !p)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors">
+                  <Plus className="w-3 h-3" /> Adicionar idioma
                 </button>
               )}
+              {showLangPicker && (
+                <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-10 min-w-40 overflow-hidden">
+                  {AVAILABLE_LANGUAGES
+                    .filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code))
+                    .map((lang) => (
+                      <button key={lang.code} type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors text-foreground"
+                        onClick={() => {
+                          setForm((f) => ({
+                            ...f,
+                            nomeFantasiaI18n: [...f.nomeFantasiaI18n, { langCode: lang.code, langLabel: lang.label, value: "", uso: f.nomeFantasiaUso }],
+                          }));
+                          setShowLangPicker(false);
+                        }}>
+                        {lang.label}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
-          ))}
-          <div className="relative" ref={langPickerRef}>
-            {AVAILABLE_LANGUAGES.filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code)).length > 0 && (
-              <button type="button"
-                onClick={() => setShowLangPicker((p) => !p)}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors mt-1">
-                <Plus className="w-3 h-3" /> Adicionar outro idioma
-              </button>
-            )}
-            {showLangPicker && (
-              <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-10 min-w-40 overflow-hidden">
-                {AVAILABLE_LANGUAGES
-                  .filter((l) => !form.nomeFantasiaI18n.find((x) => x.langCode === l.code))
-                  .map((lang) => (
-                    <button key={lang.code} type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors text-foreground"
-                      onClick={() => {
-                        setForm((f) => ({
-                          ...f,
-                          nomeFantasiaI18n: [...f.nomeFantasiaI18n, { langCode: lang.code, langLabel: lang.label, value: "", uso: f.nomeFantasiaUso }],
-                        }));
-                        setShowLangPicker(false);
-                      }}>
-                      {lang.label}
-                    </button>
-                  ))}
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -457,6 +498,8 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
   const removeExtra = (id: string) => setExtras((prev) => prev.filter((e) => e.id !== id));
   const updateExtra = (id: string, field: "label" | "value", val: string) =>
     setExtras((prev) => prev.map((e) => e.id === id ? { ...e, [field]: val } : e));
+  const selectExtraPerson = (id: string, person: Person) =>
+    setExtras((prev) => prev.map((e) => e.id === id ? { ...e, value: person.name, label: person.role } : e));
 
   return (
     <div className="space-y-5">
@@ -520,6 +563,8 @@ function StepResponsaveis({ form, setForm, errors, setErrors }: {
                 <PeopleAutocomplete
                   value={extra.value}
                   onChange={(v) => updateExtra(extra.id, "value", v)}
+                  onSelect={(person) => selectExtraPerson(extra.id, person)}
+                  roleFilter={extra.label}
                   placeholder="Buscar pessoa..."
                 />
               </div>
@@ -809,8 +854,7 @@ function StepGrade({ form, setForm }: {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ m1: true });
 
   // ── Customizado state ─────────────────────────────────────────────────────
-  const [selectedDay, setSelectedDay] = useState(0);
-  const [editBlockId, setEditBlockId] = useState<string | null>(null);
+  const [editBlockTarget, setEditBlockTarget] = useState<{ dayIdx: number; blockId: string } | null>(null);
 
   const gradeModel = form.gradeModel;
   const setGradeModel = (m: GradeModel) => setForm((f) => ({ ...f, gradeModel: m }));
@@ -819,23 +863,23 @@ function StepGrade({ form, setForm }: {
   const setDayBlocks = (dIdx: number, blocks: DayBlock[]) =>
     setForm((f) => ({ ...f, customDayBlocks: { ...f.customDayBlocks, [dIdx]: blocks } }));
 
-  const addBlock = (type: BlockType) => {
+  const addBlock = (dIdx: number, type: BlockType) => {
     const defaults: Record<BlockType, { label: string; startTime: string; endTime: string }> = {
-      sessao:  { label: `Sessão ${dayBlocks(selectedDay).filter(b => b.type === "sessao").length + 1}`, startTime: "09:00", endTime: "10:30" },
+      sessao:  { label: `Sessão ${dayBlocks(dIdx).filter(b => b.type === "sessao").length + 1}`, startTime: "09:00", endTime: "10:30" },
       coffee:  { label: "Coffee Break", startTime: "10:30", endTime: "11:00" },
       almoco:  { label: "Almoço", startTime: "12:30", endTime: "14:00" },
       pausa:   { label: "Pausa", startTime: "15:30", endTime: "15:45" },
     };
     const d = defaults[type];
     const block: DayBlock = { id: crypto.randomUUID(), type, ...d };
-    setDayBlocks(selectedDay, [...dayBlocks(selectedDay), block]);
+    setDayBlocks(dIdx, [...dayBlocks(dIdx), block]);
   };
 
-  const updateBlock = (id: string, patch: Partial<DayBlock>) =>
-    setDayBlocks(selectedDay, dayBlocks(selectedDay).map(b => b.id === id ? { ...b, ...patch } : b));
+  const updateBlock = (dIdx: number, id: string, patch: Partial<DayBlock>) =>
+    setDayBlocks(dIdx, dayBlocks(dIdx).map(b => b.id === id ? { ...b, ...patch } : b));
 
-  const removeBlock = (id: string) =>
-    setDayBlocks(selectedDay, dayBlocks(selectedDay).filter(b => b.id !== id));
+  const removeBlock = (dIdx: number, id: string) =>
+    setDayBlocks(dIdx, dayBlocks(dIdx).filter(b => b.id !== id));
 
   const BLOCK_COLORS: Record<BlockType, string> = {
     sessao: "bg-primary/10 border-primary/30 text-primary",
@@ -984,138 +1028,126 @@ function StepGrade({ form, setForm }: {
       {gradeModel === "customizado" && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Defina a estrutura de blocos de cada dia. Cada dia pode ter uma composição diferente (sessões, coffee, almoço, pausas).
+            Defina os blocos de cada dia lado a lado. Cada dia pode ter uma composição diferente.
           </p>
 
-          {/* Day tabs */}
-          <div className="flex gap-1 flex-wrap">
-            {WEEK_DAYS.map((day, dIdx) => {
-              const count = dayBlocks(dIdx).length;
+          {/* Side-by-side day columns with horizontal scroll */}
+          <div className="flex gap-3 overflow-x-auto pb-3" style={{ scrollbarWidth: "thin" }}>
+            {Array.from({ length: form.numCustomDays }, (_, dIdx) => {
+              const blocks = dayBlocks(dIdx);
               return (
-                <button key={dIdx} onClick={() => setSelectedDay(dIdx)}
-                  className={cn("px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
-                    selectedDay === dIdx
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : count > 0
-                        ? "bg-primary/5 border-primary/30 text-foreground"
-                        : "border-border text-muted-foreground hover:bg-muted"
-                  )}>
-                  {day}
-                  {count > 0 && <span className="ml-1 text-[10px] opacity-70">{count}</span>}
-                </button>
-              );
-            })}
-          </div>
+                <div key={dIdx} className="w-52 shrink-0 border border-border rounded-xl overflow-hidden flex flex-col bg-card">
+                  {/* Day column header */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
+                    <span className="text-xs font-bold text-foreground">Dia {dIdx + 1}</span>
+                    <span className="text-[10px] text-muted-foreground">{blocks.length} bloco(s)</span>
+                  </div>
 
-          {/* Block list for selected day */}
-          <div className="border border-border rounded-xl overflow-hidden">
-            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">{WEEK_DAYS[selectedDay]} — estrutura do dia</span>
-              <span className="text-xs text-muted-foreground">{dayBlocks(selectedDay).length} bloco(s)</span>
-            </div>
-
-            {dayBlocks(selectedDay).length === 0 ? (
-              <div className="py-8 text-center">
-                <CalendarLucide className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-foreground font-medium">Nenhum bloco adicionado</p>
-                <p className="text-xs text-muted-foreground mt-1">Use os botões abaixo para montar a estrutura do dia.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {dayBlocks(selectedDay).map((block, i) => (
-                  <div key={block.id} className="flex items-start gap-3 px-4 py-3">
-                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0 mt-1" />
-                    <div className="flex-1 min-w-0 space-y-2">
-                      {editBlockId === block.id ? (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30"
-                              value={block.label}
-                              onChange={(e) => updateBlock(block.id, { label: e.target.value })}
-                              placeholder="Nome do bloco"
-                            />
-                            <div className="flex gap-1">
-                              <input type="time"
-                                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
-                                value={block.startTime}
-                                onChange={(e) => updateBlock(block.id, { startTime: e.target.value })}
-                              />
-                              <input type="time"
-                                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
-                                value={block.endTime}
-                                onChange={(e) => updateBlock(block.id, { endTime: e.target.value })}
-                              />
+                  {/* Block list */}
+                  <div className="flex-1 min-h-[100px]">
+                    {blocks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <CalendarLucide className="w-5 h-5 text-muted-foreground mb-1.5" />
+                        <p className="text-[11px] text-muted-foreground">Nenhum bloco</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {blocks.map((block) => {
+                          const isEditing = editBlockTarget?.dayIdx === dIdx && editBlockTarget.blockId === block.id;
+                          return (
+                            <div key={block.id} className="px-2.5 py-2">
+                              {isEditing ? (
+                                <div className="space-y-1.5">
+                                  <input
+                                    className="w-full px-2 py-1 text-xs bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                    value={block.label}
+                                    onChange={(e) => updateBlock(dIdx, block.id, { label: e.target.value })}
+                                    placeholder="Nome do bloco"
+                                  />
+                                  <div className="flex gap-1">
+                                    <input type="time"
+                                      className="flex-1 px-1.5 py-1 text-[10px] bg-background border border-input rounded focus:outline-none"
+                                      value={block.startTime}
+                                      onChange={(e) => updateBlock(dIdx, block.id, { startTime: e.target.value })}
+                                    />
+                                    <input type="time"
+                                      className="flex-1 px-1.5 py-1 text-[10px] bg-background border border-input rounded focus:outline-none"
+                                      value={block.endTime}
+                                      onChange={(e) => updateBlock(dIdx, block.id, { endTime: e.target.value })}
+                                    />
+                                  </div>
+                                  {block.type === "sessao" && (
+                                    <PeopleAutocomplete value={block.professor ?? ""} onChange={(v) => updateBlock(dIdx, block.id, { professor: v })} placeholder="Professor..." />
+                                  )}
+                                  {block.type === "sessao" && (
+                                    <input className="w-full px-2 py-1 text-[10px] bg-background border border-input rounded focus:outline-none"
+                                      value={block.conteudo ?? ""} onChange={(e) => updateBlock(dIdx, block.id, { conteudo: e.target.value })} placeholder="Conteúdo..." />
+                                  )}
+                                  <button onClick={() => setEditBlockTarget(null)} className="text-[10px] text-primary hover:underline">Fechar</button>
+                                </div>
+                              ) : (
+                                <div className="flex items-start gap-1.5 group">
+                                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 mt-0.5", BLOCK_COLORS[block.type])}>
+                                    {BLOCK_LABELS[block.type]}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] text-foreground font-medium leading-tight truncate">{block.label}</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono">{block.startTime}–{block.endTime}</p>
+                                    {block.professor && <p className="text-[10px] text-muted-foreground truncate">{block.professor}</p>}
+                                  </div>
+                                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+                                    <button onClick={() => setEditBlockTarget({ dayIdx: dIdx, blockId: block.id })}
+                                      className="p-0.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                                      <Pencil className="w-2.5 h-2.5" />
+                                    </button>
+                                    <button onClick={() => removeBlock(dIdx, block.id)}
+                                      className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                      <Trash2 className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                          {block.type === "sessao" && (
-                            <PeopleAutocomplete
-                              value={block.professor ?? ""}
-                              onChange={(v) => updateBlock(block.id, { professor: v })}
-                              placeholder="Professor..."
-                            />
-                          )}
-                          {block.type === "sessao" && (
-                            <input
-                              className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none"
-                              value={block.conteudo ?? ""}
-                              onChange={(e) => updateBlock(block.id, { conteudo: e.target.value })}
-                              placeholder="Conteúdo / tema..."
-                            />
-                          )}
-                          <button onClick={() => setEditBlockId(null)}
-                            className="text-xs text-primary hover:underline">Fechar</button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium shrink-0", BLOCK_COLORS[block.type])}>
-                            {BLOCK_LABELS[block.type]}
-                          </span>
-                          <span className="text-sm font-medium text-foreground truncate">{block.label}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">{block.startTime}–{block.endTime}</span>
-                          {block.professor && (
-                            <span className="text-xs text-muted-foreground truncate">{block.professor}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={() => setEditBlockId(editBlockId === block.id ? null : block.id)}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => removeBlock(block.id)}
-                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add block footer */}
+                  <div className="px-2 py-2 border-t border-border bg-muted/20">
+                    <div className="flex gap-1 flex-wrap">
+                      {([
+                        { type: "sessao" as BlockType, label: "+S", title: "Sessão", color: "bg-primary/10 text-primary hover:bg-primary/20" },
+                        { type: "coffee" as BlockType, label: "+C", title: "Coffee", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20" },
+                        { type: "almoco" as BlockType, label: "+A", title: "Almoço", color: "bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20" },
+                        { type: "pausa" as BlockType, label: "+P", title: "Pausa", color: "bg-muted text-muted-foreground hover:bg-muted/80" },
+                      ]).map((btn) => (
+                        <button key={btn.type} onClick={() => addBlock(dIdx, btn.type)} title={btn.title}
+                          className={cn("px-2 py-0.5 text-[10px] font-bold rounded border border-transparent transition-all", btn.color)}>
+                          {btn.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              );
+            })}
+
+            {/* Add day column */}
+            <button
+              onClick={() => setForm((f) => ({ ...f, numCustomDays: f.numCustomDays + 1 }))}
+              className="w-44 shrink-0 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center py-10 text-muted-foreground hover:bg-muted/30 hover:text-foreground hover:border-primary/30 transition-all">
+              <Plus className="w-5 h-5 mb-1.5" />
+              <span className="text-xs font-medium">Adicionar dia</span>
+            </button>
           </div>
 
-          {/* Add block buttons */}
-          <div className="flex gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground self-center">Adicionar:</span>
-            {([
-              { type: "sessao" as BlockType, label: "+ Sessão", color: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/15" },
-              { type: "coffee" as BlockType, label: "+ Coffee Break", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/15" },
-              { type: "almoco" as BlockType, label: "+ Almoço", color: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 hover:bg-green-500/15" },
-              { type: "pausa" as BlockType, label: "+ Pausa", color: "bg-muted text-muted-foreground border-border hover:bg-muted/80" },
-            ]).map((btn) => (
-              <button key={btn.type} onClick={() => addBlock(btn.type)}
-                className={cn("px-3 py-1.5 text-xs font-medium rounded-lg border transition-all", btn.color)}>
-                {btn.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Copy structure hint */}
+          {/* Hint */}
           <div className="bg-muted/40 rounded-xl p-3 flex items-center gap-2">
-            <Copy className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <Info className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <p className="text-xs text-muted-foreground">
-              Dica: estruture um dia e replique nos demais copiando os blocos manualmente. Vinculação com datas ocorre no passo <strong>Dias de aula</strong>.
+              Vinculação com datas de aula ocorre no passo <strong>Dias de aula</strong>.
             </p>
           </div>
         </div>
@@ -1380,46 +1412,98 @@ function StepDetalhes() {
 }
 
 const WEEK_DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const TIME_ROWS = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
+const TIME_SLOTS = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
-interface AllocSessao { id: string; nome: string; slot: string; modulo?: string; duracao?: number; allocated?: boolean; dayIdx?: number; timeIdx?: number }
+// ─── Calendar types ────────────────────────────────────────────────────────────
+interface SidebarSession {
+  id: string; nome: string; slot: string; duracao: number;
+  professor?: string; moduloNome?: string; disciplinaNome?: string;
+  tipo: "academica" | "nao_academica";
+}
+interface SidebarDisciplina { id: string; nome: string; sessoes: SidebarSession[] }
+interface SidebarModulo { id: string; nome: string; disciplinas: SidebarDisciplina[] }
 
-const MOCK_ALLOC_SESSOES: AllocSessao[] = [
-  { id: "a1", nome: "Introdução à Estratégia", slot: "M1", modulo: "Módulo 1", duracao: 90 },
-  { id: "a2", nome: "Análise Competitiva", slot: "T1", modulo: "Módulo 1", duracao: 90, allocated: true, dayIdx: 0, timeIdx: 2 },
-  { id: "a3", nome: "Valuation", slot: "M2", modulo: "Módulo 1", duracao: 90 },
-  { id: "a4", nome: "Estudo de Caso AMBEV", slot: "M1", modulo: "Módulo 2", duracao: 120 },
-  { id: "a5", nome: "Estrutura de Capital", slot: "T2", modulo: "Módulo 1", duracao: 90, allocated: true, dayIdx: 2, timeIdx: 5 },
-  { id: "a6", nome: "Posicionamento de Marca", slot: "M1", modulo: "Módulo 2", duracao: 90 },
+const MOCK_SIDEBAR_MODULOS: SidebarModulo[] = [
+  {
+    id: "m1", nome: "Módulo 1 — Fundamentos",
+    disciplinas: [
+      {
+        id: "d1", nome: "Fundamentos de Gestão de Pessoas",
+        sessoes: [
+          { id: "ss1", nome: "Sessão 1 - Conceitos de gestão", slot: "M1", duracao: 75, professor: "Prof(a) Ana Paula", moduloNome: "Módulo 1", disciplinaNome: "Fund. Gestão de Pessoas", tipo: "academica" },
+          { id: "ss2", nome: "Sessão 2 - Análise Organizacional", slot: "M1", duracao: 75, professor: "Prof(a) Ana Paula", moduloNome: "Módulo 1", disciplinaNome: "Fund. Gestão de Pessoas", tipo: "academica" },
+          { id: "ss3", nome: "Sessão 3 - Estudo de Caso", slot: "M1", duracao: 75, professor: "Prof(a) Ana Paula", moduloNome: "Módulo 1", disciplinaNome: "Fund. Gestão de Pessoas", tipo: "academica" },
+          { id: "ss4", nome: "Sessão 4 - Tendências em RH", slot: "M1", duracao: 75, professor: "Prof(a) Ana Paula", moduloNome: "Módulo 1", disciplinaNome: "Fund. Gestão de Pessoas", tipo: "academica" },
+        ],
+      },
+      {
+        id: "d2", nome: "Finanças Corporativas",
+        sessoes: [
+          { id: "ss5", nome: "Sessão 1 - Estrutura de Capital", slot: "T1", duracao: 90, professor: "Prof. Dr. Carlos Faria", moduloNome: "Módulo 1", disciplinaNome: "Finanças Corporativas", tipo: "academica" },
+          { id: "ss6", nome: "Sessão 2 - Custo de Capital", slot: "T1", duracao: 90, professor: "Prof. Dr. Carlos Faria", moduloNome: "Módulo 1", disciplinaNome: "Finanças Corporativas", tipo: "academica" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "m2", nome: "Módulo 2 — Estratégia",
+    disciplinas: [
+      {
+        id: "d3", nome: "Estratégia Empresarial",
+        sessoes: [
+          { id: "ss7", nome: "Sessão 1 - Posicionamento", slot: "M2", duracao: 90, professor: "Prof. Dr. Pedro Costa", moduloNome: "Módulo 2", disciplinaNome: "Estratégia Empresarial", tipo: "academica" },
+          { id: "ss8", nome: "Sessão 2 - Vantagem Competitiva", slot: "M2", duracao: 90, professor: "Prof. Dr. Pedro Costa", moduloNome: "Módulo 2", disciplinaNome: "Estratégia Empresarial", tipo: "academica" },
+          { id: "ss9", nome: "Sessão 3 - Blue Ocean", slot: "M2", duracao: 90, professor: "Prof. Dr. Pedro Costa", moduloNome: "Módulo 2", disciplinaNome: "Estratégia Empresarial", tipo: "academica" },
+        ],
+      },
+    ],
+  },
+];
+
+const MOCK_NAO_ACADEMICAS: SidebarSession[] = [
+  { id: "na1", nome: "Coffee Break", slot: "—", duracao: 30, tipo: "nao_academica" },
+  { id: "na2", nome: "Welcome Coffee", slot: "—", duracao: 30, tipo: "nao_academica" },
+  { id: "na3", nome: "Almoço", slot: "—", duracao: 60, tipo: "nao_academica" },
+];
+
+const ALL_SIDEBAR_SESSIONS: SidebarSession[] = [
+  ...MOCK_SIDEBAR_MODULOS.flatMap((m) => m.disciplinas.flatMap((d) => d.sessoes)),
+  ...MOCK_NAO_ACADEMICAS,
 ];
 
 // ─── DnD sub-components ───────────────────────────────────────────────────────
-function DraggableSessionCard({ sessao, academic }: { sessao: AllocSessao; academic: boolean }) {
+function SidebarSessionCard({ sessao }: { sessao: SidebarSession }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: sessao.id });
   return (
     <div ref={setNodeRef} {...listeners} {...attributes}
       className={cn(
-        "flex items-center gap-2 px-2.5 py-2.5 border border-border rounded-xl bg-card hover:border-primary/40 hover:shadow-sm transition-all cursor-grab touch-none",
+        "flex items-start gap-1.5 px-2 py-2 border border-border rounded-lg bg-card hover:border-primary/40 transition-all cursor-grab touch-none select-none",
         isDragging && "opacity-40"
       )}>
-      <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 shrink-0" />
-      {academic ? (
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-foreground truncate">{sessao.nome}</p>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs font-mono text-muted-foreground">{sessao.slot}</span>
-            {sessao.modulo && <span className="text-xs text-muted-foreground/60 truncate">{sessao.modulo}</span>}
+      <GripVertical className="w-3 h-3 text-muted-foreground opacity-40 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-1">
+          <span className="text-[11px] font-medium text-foreground leading-tight line-clamp-2">{sessao.nome}</span>
+          <div className="flex items-center gap-1 shrink-0 ml-1">
+            <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 py-0.5 rounded leading-none">{sessao.slot}</span>
+            <span className="text-[10px] text-muted-foreground leading-none whitespace-nowrap">{sessao.duracao}min</span>
           </div>
         </div>
-      ) : (
-        <p className="text-xs font-medium text-foreground truncate flex-1">{sessao.nome}</p>
-      )}
+        {sessao.professor && (
+          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{sessao.professor}</p>
+        )}
+        {sessao.moduloNome && (
+          <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium leading-none">
+            {sessao.moduloNome}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
-function DraggablePlacedSession({ sessao, onRemove, isBeingDragged }: {
-  sessao: AllocSessao; onRemove: () => void; isBeingDragged: boolean;
+function PlacedSessionCell({ sessao, onRemove, isBeingDragged }: {
+  sessao: SidebarSession; onRemove: () => void; isBeingDragged: boolean;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: sessao.id });
   return (
@@ -1427,107 +1511,115 @@ function DraggablePlacedSession({ sessao, onRemove, isBeingDragged }: {
       <TooltipTrigger asChild>
         <div ref={setNodeRef} {...listeners} {...attributes}
           className={cn(
-            "h-10 rounded-lg bg-primary/10 border border-primary/20 px-1.5 flex items-center justify-between group cursor-grab touch-none hover:bg-primary/15 transition-colors w-full overflow-hidden",
+            "h-full rounded-md bg-primary/10 border border-primary/25 px-1.5 flex items-center justify-between group cursor-grab touch-none hover:bg-primary/15 transition-colors w-full overflow-hidden",
             isBeingDragged && "opacity-40"
           )}>
-          <span className="text-xs text-primary font-medium truncate flex-1 min-w-0">{sessao.nome}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-medium text-primary truncate leading-none">{sessao.nome}</p>
+            {sessao.professor && <p className="text-[10px] text-primary/60 truncate mt-0.5 leading-none">{sessao.professor}</p>}
+          </div>
           <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onRemove(); }}
             className="opacity-0 group-hover:opacity-100 shrink-0 ml-1 text-muted-foreground hover:text-destructive transition-all">
             <X className="w-2.5 h-2.5" />
           </button>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="top">
-        <p>{sessao.nome}</p>
-      </TooltipContent>
+      <TooltipContent side="top"><p>{sessao.nome}</p></TooltipContent>
     </Tooltip>
   );
 }
 
-function DroppableCell({ dayIdx, timeIdx, children, isOver, isEmpty }: {
-  dayIdx: number; timeIdx: number; children?: React.ReactNode; isOver: boolean; isEmpty: boolean;
+function CalendarDropCell({ dateKey, timeIdx, children, isOver, isEmpty }: {
+  dateKey: string; timeIdx: number; children?: React.ReactNode; isOver: boolean; isEmpty: boolean;
 }) {
-  const { setNodeRef } = useDroppable({ id: `cell-${dayIdx}-${timeIdx}`, data: { dayIdx, timeIdx } });
+  const { setNodeRef } = useDroppable({ id: `cell-${dateKey}-${timeIdx}`, data: { dateKey, timeIdx } });
   return (
-    <div ref={setNodeRef}
-      className={cn(
-        "h-10 rounded-lg transition-colors overflow-hidden",
-        isEmpty
-          ? isOver ? "bg-primary/10 border border-dashed border-primary/50" : "border border-dashed border-border hover:bg-primary/5 hover:border-primary/30"
-          : isOver ? "ring-2 ring-primary/40" : ""
-      )}>
+    <div ref={setNodeRef} className={cn(
+      "h-full rounded-md transition-colors overflow-hidden",
+      isEmpty
+        ? isOver ? "bg-primary/10 border border-dashed border-primary/50" : "border border-dashed border-transparent hover:border-border/60 hover:bg-muted/20"
+        : isOver ? "ring-2 ring-primary/40" : ""
+    )}>
       {children}
     </div>
   );
 }
 
 function StepDiasAula({ form }: { form: TurmaFormData }) {
-  const [viewDir, setViewDir] = useState<"horizontal" | "vertical">("horizontal");
-  const [sessoes, setSessoes] = useState<AllocSessao[]>(MOCK_ALLOC_SESSOES);
+  const INITIAL_WEEK = new Date(2027, 2, 22); // mock program start (Monday)
+  const [weekStart, setWeekStart] = useState(INITIAL_WEEK);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({ m1: true, m2: false, non_academic: true });
+  const [expandedDiscs, setExpandedDiscs] = useState<Record<string, boolean>>({ d1: true });
+  const [placements, setPlacements] = useState<Record<string, { dateKey: string; timeIdx: number }>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dayLocals, setDayLocals] = useState<Record<number, LocalType>>({});
-
-  const setDayLocal = (dIdx: number, val: LocalType) =>
-    setDayLocals((prev) => ({ ...prev, [dIdx]: val }));
+  const [dayModalities, setDayModalities] = useState<Record<number, ModalityType>>({});
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const unallocated = sessoes.filter((s) => !s.allocated);
-  const academic = unallocated.filter((_, i) => i % 2 === 0);
-  const nonAcademic = unallocated.filter((_, i) => i % 2 !== 0);
-  const allocatedCount = sessoes.filter((s) => s.allocated).length;
-  const allocPct = sessoes.length > 0 ? Math.round((allocatedCount / sessoes.length) * 100) : 0;
-  const activeSessao = activeId ? sessoes.find((s) => s.id === activeId) ?? null : null;
+  const fmtKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  const placeSession = (sessaoId: string, dayIdx: number, timeIdx: number) => {
-    setSessoes((prev) => prev.map((s) =>
-      s.id === sessaoId ? { ...s, allocated: true, dayIdx, timeIdx } : s
-    ));
-  };
-  const removeAllocation = (sessaoId: string) => {
-    setSessoes((prev) => prev.map((s) =>
-      s.id === sessaoId ? { ...s, allocated: false, dayIdx: undefined, timeIdx: undefined } : s
-    ));
-  };
-  const getSessionAt = (dayIdx: number, timeIdx: number) =>
-    sessoes.find((s) => s.allocated && s.dayIdx === dayIdx && s.timeIdx === timeIdx);
+  const weekDays = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const weekEnd = weekDays[5];
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(String(event.active.id));
+  const prevWeek = () => setWeekStart((d) => { const nd = new Date(d); nd.setDate(nd.getDate() - 7); return nd; });
+  const nextWeek = () => setWeekStart((d) => { const nd = new Date(d); nd.setDate(nd.getDate() + 7); return nd; });
+
+  const placedIds = new Set(Object.keys(placements));
+  const totalCount = ALL_SIDEBAR_SESSIONS.length;
+  const placedCount = placedIds.size;
+  const allocPct = totalCount > 0 ? Math.round((placedCount / totalCount) * 100) : 0;
+
+  const getPlacedAt = (dateKey: string, tIdx: number) => {
+    const entry = Object.entries(placements).find(([, p]) => p.dateKey === dateKey && p.timeIdx === tIdx);
+    return entry ? ALL_SIDEBAR_SESSIONS.find((s) => s.id === entry[0]) : undefined;
   };
+  const removeFromCell = (id: string) =>
+    setPlacements((prev) => { const next = { ...prev }; delete next[id]; return next; });
+
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
-    setOverId(null);
+    setActiveId(null); setOverId(null);
     if (!event.over) return;
-    const { dayIdx, timeIdx } = event.over.data.current as { dayIdx: number; timeIdx: number };
+    const { dateKey, timeIdx } = event.over.data.current as { dateKey: string; timeIdx: number };
     const draggedId = String(event.active.id);
-    // Reject if target is occupied by a *different* session
-    const occupant = getSessionAt(dayIdx, timeIdx);
-    if (occupant && occupant.id !== draggedId) return;
-    setSessoes((prev) => prev.map((s) =>
-      s.id === draggedId ? { ...s, allocated: true, dayIdx, timeIdx } : s
-    ));
+    const occupied = Object.entries(placements).find(([id, p]) => p.dateKey === dateKey && p.timeIdx === timeIdx && id !== draggedId);
+    if (occupied) return;
+    setPlacements((prev) => ({ ...prev, [draggedId]: { dateKey, timeIdx } }));
   };
 
-  return (
-    <TooltipProvider delayDuration={400}>
+  const activeSessao = activeId ? ALL_SIDEBAR_SESSIONS.find((s) => s.id === activeId) : null;
+  const DAY_ABBR = ["seg", "ter", "qua", "qui", "sex", "sáb"];
 
-    {/* ── Customizado view ──────────────────────────────────────────────────── */}
-    {form.gradeModel === "customizado" && (
+  // ── Customizado view ───────────────────────────────────────────────────────
+  if (form.gradeModel === "customizado") {
+    return (
       <div className="space-y-4">
-        {WEEK_DAYS.map((day, dIdx) => {
+        {Array.from({ length: form.numCustomDays }, (_, dIdx) => {
           const blocks = form.customDayBlocks[dIdx] ?? [];
           if (blocks.length === 0) return null;
           return (
             <div key={dIdx} className="border border-border rounded-xl overflow-hidden">
               <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">{day}</span>
+                <span className="text-sm font-semibold text-foreground">Dia {dIdx + 1}</span>
                 <div className="flex items-center gap-2">
                   <select
                     className="text-xs px-2 py-1 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground"
+                    value={dayModalities[dIdx] ?? ""}
+                    onChange={(e) => setDayModalities((p) => ({ ...p, [dIdx]: e.target.value as ModalityType }))}>
+                    <option value="">Modalidade…</option>
+                    {MODALIDADES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <select
+                    className="text-xs px-2 py-1 bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground"
                     value={dayLocals[dIdx] ?? ""}
-                    onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
+                    onChange={(e) => setDayLocals((p) => ({ ...p, [dIdx]: e.target.value as LocalType }))}>
                     <option value="">Local…</option>
                     {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
                   </select>
@@ -1536,9 +1628,7 @@ function StepDiasAula({ form }: { form: TurmaFormData }) {
               <div className="divide-y divide-border">
                 {blocks.map((block) => (
                   <div key={block.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="text-xs text-muted-foreground font-mono w-20 shrink-0">
-                      {block.startTime}–{block.endTime}
-                    </div>
+                    <div className="text-xs text-muted-foreground font-mono w-20 shrink-0">{block.startTime}–{block.endTime}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium shrink-0",
@@ -1551,12 +1641,8 @@ function StepDiasAula({ form }: { form: TurmaFormData }) {
                         </span>
                         <span className="text-sm font-medium text-foreground">{block.label}</span>
                       </div>
-                      {block.professor && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{block.professor}</p>
-                      )}
-                      {block.conteudo && (
-                        <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{block.conteudo}</p>
-                      )}
+                      {block.professor && <p className="text-xs text-muted-foreground mt-0.5">{block.professor}</p>}
+                      {block.conteudo && <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{block.conteudo}</p>}
                     </div>
                   </div>
                 ))}
@@ -1564,7 +1650,7 @@ function StepDiasAula({ form }: { form: TurmaFormData }) {
             </div>
           );
         })}
-        {WEEK_DAYS.every((_, dIdx) => (form.customDayBlocks[dIdx] ?? []).length === 0) && (
+        {Array.from({ length: form.numCustomDays }, (_, dIdx) => form.customDayBlocks[dIdx] ?? []).every((b) => b.length === 0) && (
           <div className="border border-dashed border-border rounded-xl py-10 text-center">
             <CalendarLucide className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm font-medium text-foreground">Nenhuma estrutura definida</p>
@@ -1572,168 +1658,194 @@ function StepDiasAula({ form }: { form: TurmaFormData }) {
           </div>
         )}
       </div>
-    )}
+    );
+  }
 
-    {/* ── Aberto drag-drop view ──────────────────────────────────────────── */}
-    {form.gradeModel !== "customizado" && (
-    <DndContext sensors={sensors} onDragStart={handleDragStart}
-      onDragOver={(e) => setOverId(e.over ? String(e.over.id) : null)}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => { setActiveId(null); setOverId(null); }}>
-      <div className="h-full min-h-[600px] flex flex-col gap-4">
-        {/* Controls */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-medium">Visualização:</span>
-            <div className="flex gap-1 p-1 bg-muted rounded-lg">
-              {([{ key: "horizontal", label: "Horizontal" }, { key: "vertical", label: "Vertical" }] as const).map((v) => (
-                <button key={v.key} onClick={() => setViewDir(v.key)}
-                  className={cn("text-xs px-2.5 py-1 rounded-md transition-all font-medium",
-                    viewDir === v.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}>{v.label}</button>
+  // ── Aberto — calendar view ─────────────────────────────────────────────────
+  return (
+    <TooltipProvider delayDuration={400}>
+      <DndContext sensors={sensors}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragOver={(e) => setOverId(e.over ? String(e.over.id) : null)}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => { setActiveId(null); setOverId(null); }}>
+
+        <div className="flex border border-border rounded-xl overflow-hidden" style={{ minHeight: 560 }}>
+
+          {/* ── Sidebar ────────────────────────────────────────────────────── */}
+          {sidebarOpen && (
+            <div className="w-56 shrink-0 border-r border-border flex flex-col bg-card">
+              {/* Sidebar header */}
+              <div className="px-3 py-3 border-b border-border shrink-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[11px] font-bold text-foreground truncate flex-1 mr-1">
+                    Turma — {form.nomeTurma || "Nova Turma"}
+                  </p>
+                  <button onClick={() => setSidebarOpen(false)}
+                    className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors shrink-0">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{placedCount}/{totalCount} atividades agendadas</p>
+                <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all", allocPct === 100 ? "bg-green-500" : "bg-primary")}
+                    style={{ width: `${allocPct}%` }} />
+                </div>
+              </div>
+
+              {/* Session list */}
+              <div className="flex-1 overflow-y-auto">
+                {MOCK_SIDEBAR_MODULOS.map((modulo) => {
+                  const modTotal = modulo.disciplinas.reduce((a, d) => a + d.sessoes.length, 0);
+                  const modPlaced = modulo.disciplinas.reduce((a, d) => a + d.sessoes.filter((s) => placedIds.has(s.id)).length, 0);
+                  return (
+                    <div key={modulo.id}>
+                      <button onClick={() => setExpandedModules((p) => ({ ...p, [modulo.id]: !p[modulo.id] }))}
+                        className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-muted/50 transition-colors text-left border-b border-border/50">
+                        {expandedModules[modulo.id] ? <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />}
+                        <span className="text-[11px] font-semibold text-foreground flex-1 truncate">{modulo.nome}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">({modPlaced}/{modTotal})</span>
+                      </button>
+                      {expandedModules[modulo.id] && modulo.disciplinas.map((disc) => {
+                        const discTotal = disc.sessoes.length;
+                        const discPlaced = disc.sessoes.filter((s) => placedIds.has(s.id)).length;
+                        return (
+                          <div key={disc.id}>
+                            <button onClick={() => setExpandedDiscs((p) => ({ ...p, [disc.id]: !p[disc.id] }))}
+                              className="w-full flex items-center gap-1.5 pl-5 pr-3 py-1.5 hover:bg-muted/30 transition-colors text-left">
+                              {expandedDiscs[disc.id] ? <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
+                              <span className="text-[10px] font-medium text-muted-foreground flex-1 truncate">{disc.nome}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">({discPlaced}/{discTotal})</span>
+                            </button>
+                            {expandedDiscs[disc.id] && (
+                              <div className="pl-4 pr-2 pb-1.5 space-y-1">
+                                {disc.sessoes.map((s) => (
+                                  <div key={s.id} className={cn(placedIds.has(s.id) && "opacity-40 pointer-events-none")}>
+                                    <SidebarSessionCard sessao={s} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {/* Non-academic */}
+                <div>
+                  <button onClick={() => setExpandedModules((p) => ({ ...p, non_academic: !p.non_academic }))}
+                    className="w-full flex items-center gap-1.5 px-3 py-2 hover:bg-muted/50 transition-colors text-left border-b border-border/50 border-t border-border/50">
+                    {expandedModules.non_academic ? <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />}
+                    <span className="text-[11px] font-semibold text-foreground flex-1">Não acadêmicas</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      ({MOCK_NAO_ACADEMICAS.filter((s) => placedIds.has(s.id)).length}/{MOCK_NAO_ACADEMICAS.length})
+                    </span>
+                  </button>
+                  {expandedModules.non_academic && (
+                    <div className="pl-4 pr-2 py-1.5 space-y-1">
+                      {MOCK_NAO_ACADEMICAS.map((s) => (
+                        <div key={s.id} className={cn(placedIds.has(s.id) && "opacity-40 pointer-events-none")}>
+                          <SidebarSessionCard sessao={s} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Calendar ───────────────────────────────────────────────────── */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* Calendar toolbar */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0 bg-card">
+              {!sidebarOpen && (
+                <button onClick={() => setSidebarOpen(true)}
+                  className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground shrink-0">
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <p className="text-sm font-semibold text-foreground capitalize flex-1">
+                {format(weekStart, "MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground hidden sm:block">
+                  {format(weekStart, "dd/MM/yyyy")} – {format(weekEnd, "dd/MM/yyyy")}
+                </span>
+                <div className="flex gap-0.5">
+                  <button onClick={prevWeek} className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={nextWeek} className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Grid */}
+            <div className="flex-1 overflow-auto">
+              {/* Day header row — sticky */}
+              <div className="grid sticky top-0 z-10 bg-card border-b border-border"
+                style={{ gridTemplateColumns: `44px repeat(6, minmax(90px, 1fr))` }}>
+                <div className="border-r border-border" />
+                {weekDays.map((day, i) => (
+                  <div key={i} className="py-2 text-center border-l border-border">
+                    <p className="text-[10px] text-muted-foreground capitalize">{DAY_ABBR[i]}</p>
+                    <p className="text-xs font-semibold text-foreground">{format(day, "dd/MM/yy")}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Time rows */}
+              {TIME_SLOTS.map((time, tIdx) => (
+                <div key={time} className="grid border-b border-border/40"
+                  style={{ gridTemplateColumns: `44px repeat(6, minmax(90px, 1fr))` }}>
+                  <div className="flex items-center justify-end text-[10px] text-muted-foreground pr-2 border-r border-border h-10 shrink-0">
+                    {time}
+                  </div>
+                  {weekDays.map((day, dIdx) => {
+                    const dateKey = fmtKey(day);
+                    const placed = getPlacedAt(dateKey, tIdx);
+                    const cellId = `cell-${dateKey}-${tIdx}`;
+                    return (
+                      <div key={dIdx} className={cn("h-10 p-0.5", dIdx > 0 && "border-l border-border/40")}>
+                        <CalendarDropCell dateKey={dateKey} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
+                          {placed && (
+                            <PlacedSessionCell
+                              sessao={placed}
+                              isBeingDragged={activeId === placed.id}
+                              onRemove={() => removeFromCell(placed.id)}
+                            />
+                          )}
+                        </CalendarDropCell>
+                      </div>
+                    );
+                  })}
+                </div>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", allocPct === 100 ? "bg-success" : "bg-primary")}
-                style={{ width: `${allocPct}%` }} />
-            </div>
-            <span className="text-xs text-muted-foreground">{allocatedCount}/{sessoes.length} alocadas</span>
-          </div>
         </div>
 
-        <div className="flex flex-col gap-4 flex-1">
-          {/* Top panel – sessions list */}
-          <div className="flex gap-6">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Acadêmicas</p>
-              <div className="flex flex-wrap gap-1.5">
-                {academic.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">Todas alocadas</p>
-                ) : academic.map((s) => (
-                  <DraggableSessionCard key={s.id} sessao={s} academic />
-                ))}
+        <DragOverlay>
+          {activeSessao && (
+            <div className="flex items-start gap-1.5 px-2 py-2 border border-primary rounded-lg bg-card shadow-xl opacity-95 w-52 cursor-grabbing">
+              <GripVertical className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-medium text-foreground truncate">{activeSessao.nome}</p>
+                {activeSessao.professor && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{activeSessao.professor}</p>}
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[10px] font-mono bg-muted px-1 rounded">{activeSessao.slot}</span>
+                  <span className="text-[10px] text-muted-foreground">{activeSessao.duracao}min</span>
+                </div>
               </div>
             </div>
-            {nonAcademic.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Não-acadêmicas</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {nonAcademic.map((s) => (
-                    <DraggableSessionCard key={s.id} sessao={s} academic={false} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom panel – grid */}
-          <div className="overflow-auto">
-            {viewDir === "horizontal" ? (
-              /* Horizontal: days = columns, hours = rows */
-              <div className="min-w-[480px]">
-                <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
-                  <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Hora</div>
-                  {WEEK_DAYS.map((d) => (
-                    <div key={d} className="text-xs font-semibold text-center text-foreground py-1">{d}</div>
-                  ))}
-                </div>
-                {/* Local per day row */}
-                <div className="grid gap-0.5 mb-2" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)` }}>
-                  <div className="text-xs text-muted-foreground text-right pr-1.5 self-center">Local</div>
-                  {WEEK_DAYS.map((_, dIdx) => (
-                    <select key={dIdx}
-                      className="text-xs px-1.5 py-1 bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground w-full"
-                      value={dayLocals[dIdx] ?? ""}
-                      onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
-                      <option value="">—</option>
-                      {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                    </select>
-                  ))}
-                </div>
-                {TIME_ROWS.map((time, tIdx) => (
-                  <div key={time} className="grid gap-0.5" style={{ gridTemplateColumns: `52px repeat(${WEEK_DAYS.length}, 1fr)`, gridAutoRows: "40px" }}>
-                    <div className="h-10 flex items-center justify-end text-xs text-muted-foreground pr-1.5">{time}</div>
-                    {WEEK_DAYS.map((_, dIdx) => {
-                      const placed = getSessionAt(dIdx, tIdx);
-                      const cellId = `cell-${dIdx}-${tIdx}`;
-                      return (
-                        <DroppableCell key={dIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
-                          {placed && (
-                            <DraggablePlacedSession
-                              sessao={placed}
-                              isBeingDragged={activeId === placed.id}
-                              onRemove={() => removeAllocation(placed.id)}
-                            />
-                          )}
-                        </DroppableCell>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Vertical: hours = columns, days = rows */
-              <div className="min-w-[640px]">
-                <div className="grid gap-0.5 mb-1" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)` }}>
-                  <div className="text-xs text-muted-foreground text-right pr-1.5 pt-1">Dia</div>
-                  {TIME_ROWS.map((time) => (
-                    <div key={time} className="text-xs font-semibold text-center text-foreground py-1">{time}</div>
-                  ))}
-                </div>
-                {WEEK_DAYS.map((day, dIdx) => (
-                  <div key={day} className="grid gap-0.5 mb-0.5" style={{ gridTemplateColumns: `52px repeat(${TIME_ROWS.length}, 1fr)`, gridAutoRows: "40px" }}>
-                    <div className="h-10 flex flex-col items-end justify-center pr-1.5 gap-0.5">
-                      <span className="text-xs font-semibold text-foreground leading-none">{day}</span>
-                      <select
-                        className="text-[10px] px-1 py-0.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary/30 text-muted-foreground w-full max-w-[48px]"
-                        value={dayLocals[dIdx] ?? ""}
-                        onChange={(e) => setDayLocal(dIdx, e.target.value as LocalType)}>
-                        <option value="">—</option>
-                        {LOCAIS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                      </select>
-                    </div>
-                    {TIME_ROWS.map((_, tIdx) => {
-                      const placed = getSessionAt(dIdx, tIdx);
-                      const cellId = `cell-${dIdx}-${tIdx}`;
-                      return (
-                        <DroppableCell key={tIdx} dayIdx={dIdx} timeIdx={tIdx} isOver={overId === cellId} isEmpty={!placed}>
-                          {placed && (
-                            <DraggablePlacedSession
-                              sessao={placed}
-                              isBeingDragged={activeId === placed.id}
-                              onRemove={() => removeAllocation(placed.id)}
-                            />
-                          )}
-                        </DroppableCell>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <DragOverlay>
-        {activeSessao && (
-          <div className="flex items-center gap-2 px-2.5 py-2.5 border border-primary rounded-xl bg-card shadow-lg opacity-90 w-48 cursor-grabbing">
-            <GripVertical className="w-3 h-3 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">{activeSessao.nome}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-xs font-mono text-muted-foreground">{activeSessao.slot}</span>
-                {activeSessao.modulo && <span className="text-xs text-muted-foreground/60 truncate">{activeSessao.modulo}</span>}
-              </div>
-            </div>
-          </div>
-        )}
-      </DragOverlay>
-    </DndContext>
-    )}
-
+          )}
+        </DragOverlay>
+      </DndContext>
     </TooltipProvider>
   );
 }
@@ -1759,7 +1871,7 @@ export default function NewTurmaPage() {
     ],
     anoInicio: String(new Date().getFullYear()), anoConclusion: "",
     local: "campus_ise", tipoPrograma: "custom",
-    gradeModel: "aberto", customDayBlocks: {},
+    gradeModel: "aberto", customDayBlocks: {}, numCustomDays: 3,
   };
 
   const [form, setForm] = useState<TurmaFormData>(
@@ -1783,6 +1895,7 @@ export default function NewTurmaPage() {
       anoConclusion: editTurma.anoConclusion || "",
       local: editTurma.local || "campus_ise", tipoPrograma: editTurma.tipoPrograma || "custom",
       gradeModel: editTurma.gradeModel || "aberto", customDayBlocks: editTurma.customDayBlocks || {},
+      numCustomDays: editTurma.numCustomDays || 3,
     } : emptyTurmaForm
   );
   const [step, setStep] = useState(0);
